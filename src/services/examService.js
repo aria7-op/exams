@@ -15,51 +15,88 @@ class ExamService {
         title,
         description,
         examCategoryId,
+        categoryId, // Handle both field names
         duration,
         totalMarks,
+        totalQuestions, // Handle both field names
         passingMarks,
+        passingScore, // Handle both field names
         price,
+        currency = 'USD',
         isPublic = false,
         isActive = true,
+        allowRetakes = false,
+        maxRetakes = 1,
+        showResults = true,
+        showAnswers = false,
+        randomizeQuestions = true,
+        randomizeOptions = true,
+        questionOverlapPercentage = 10.0,
         instructions,
         rules,
         startDate,
         endDate,
-        maxAttempts = 1,
-        retakeDelay = 0,
-        questionCount,
-        difficultyDistribution
+        scheduledStart,
+        scheduledEnd,
+        // Question type distribution
+        essayQuestionsCount = 0,
+        multipleChoiceQuestionsCount = 0,
+        shortAnswerQuestionsCount = 0,
+        fillInTheBlankQuestionsCount = 0,
+        trueFalseQuestionsCount = 0,
+        matchingQuestionsCount = 0,
+        orderingQuestionsCount = 0
       } = examData;
+
+      // Use the correct field names
+      const finalExamCategoryId = examCategoryId || categoryId;
+      const finalTotalMarks = totalMarks || totalQuestions;
+      const finalPassingMarks = passingMarks || passingScore;
+      const finalScheduledStart = scheduledStart || (startDate ? new Date(startDate) : null);
+      const finalScheduledEnd = scheduledEnd || (endDate ? new Date(endDate) : null);
 
       // Validate exam category exists
       const category = await prisma.examCategory.findUnique({
-        where: { id: examCategoryId }
+        where: { id: finalExamCategoryId }
       });
 
       if (!category) {
         return { success: false, message: 'Exam category not found' };
       }
 
-      // Create exam
+      // Create exam with all fields
       const exam = await prisma.exam.create({
         data: {
           title,
           description,
-          examCategoryId,
+          examCategoryId: finalExamCategoryId,
           duration,
-          totalMarks,
-          passingMarks,
+          totalMarks: finalTotalMarks,
+          passingMarks: finalPassingMarks,
           price,
+          currency,
           isPublic,
           isActive,
+          allowRetakes,
+          maxRetakes,
+          showResults,
+          showAnswers,
+          randomizeQuestions,
+          randomizeOptions,
+          questionOverlapPercentage,
           instructions,
           rules,
-          startDate: startDate ? new Date(startDate) : null,
-          endDate: endDate ? new Date(endDate) : null,
-          maxAttempts,
-          retakeDelay,
-          questionCount,
-          difficultyDistribution,
+          scheduledStart: finalScheduledStart,
+          scheduledEnd: finalScheduledEnd,
+          totalQuestions: finalTotalMarks,
+          // Question type distribution
+          essayQuestionsCount,
+          multipleChoiceQuestionsCount,
+          shortAnswerQuestionsCount,
+          fillInTheBlankQuestionsCount,
+          trueFalseQuestionsCount,
+          matchingQuestionsCount,
+          orderingQuestionsCount,
           createdBy
         },
         include: {
@@ -142,9 +179,16 @@ class ExamService {
         prisma.exam.count({ where })
       ]);
 
+      // Format exam data for frontend - map database fields to frontend expected fields
+      const formattedExams = exams.map(exam => ({
+        ...exam,
+        startDate: exam.scheduledStart,
+        endDate: exam.scheduledEnd
+      }));
+
       return {
         success: true,
-        exams,
+        exams: formattedExams,
         pagination: {
           page,
           limit,
@@ -199,7 +243,14 @@ class ExamService {
         orderBy: { createdAt: 'desc' }
       });
 
-      return { success: true, exam: { ...exam, questions } };
+      // Format exam data for frontend - map database fields to frontend expected fields
+      const formattedExam = {
+        ...exam,
+        startDate: exam.scheduledStart,
+        endDate: exam.scheduledEnd
+      };
+
+      return { success: true, exam: { ...formattedExam, questions } };
     } catch (error) {
       logger.error('Get exam by ID failed', error);
       return { success: false, message: 'Failed to get exam' };
@@ -211,6 +262,16 @@ class ExamService {
    */
   async updateExam(examId, updateData, updatedBy) {
     try {
+      logger.info('Updating exam', { 
+        examId, 
+        updateData, 
+        updatedBy,
+        hasScheduledStart: updateData.scheduledStart !== undefined,
+        hasScheduledEnd: updateData.scheduledEnd !== undefined,
+        hasStartDate: updateData.startDate !== undefined,
+        hasEndDate: updateData.endDate !== undefined
+      });
+      
       const exam = await prisma.exam.findUnique({
         where: { id: examId }
       });
@@ -219,17 +280,168 @@ class ExamService {
         return { success: false, message: 'Exam not found' };
       }
 
+      // Process date fields - convert frontend format to backend format
+      const processedData = { ...updateData };
+      
+      // Handle startDate -> scheduledStart conversion (prioritize startDate if both exist)
+      if (updateData.startDate !== undefined) {
+        logger.info('Processing startDate', { 
+          original: updateData.startDate, 
+          type: typeof updateData.startDate 
+        });
+        
+        try {
+          if (updateData.startDate) {
+            const parsedDate = new Date(updateData.startDate);
+            if (isNaN(parsedDate.getTime())) {
+              logger.error('Invalid startDate format', { startDate: updateData.startDate });
+              return { success: false, message: 'Invalid start date format' };
+            }
+            processedData.scheduledStart = parsedDate;
+          } else {
+            processedData.scheduledStart = null;
+          }
+        } catch (dateError) {
+          logger.error('Error parsing startDate', { startDate: updateData.startDate, error: dateError });
+          return { success: false, message: 'Invalid start date format' };
+        }
+        
+        delete processedData.startDate;
+        // Remove scheduledStart if it was also provided to avoid conflicts
+        if (updateData.scheduledStart !== undefined) {
+          delete processedData.scheduledStart;
+        }
+        logger.info('Converted startDate to scheduledStart', { 
+          scheduledStart: processedData.scheduledStart 
+        });
+      } else if (updateData.scheduledStart !== undefined) {
+        // Handle direct scheduledStart updates only if startDate wasn't provided
+        logger.info('Processing scheduledStart', { 
+          original: updateData.scheduledStart, 
+          type: typeof updateData.scheduledStart 
+        });
+        
+        try {
+          if (updateData.scheduledStart) {
+            const parsedDate = new Date(updateData.scheduledStart);
+            if (isNaN(parsedDate.getTime())) {
+              logger.error('Invalid scheduledStart format', { scheduledStart: updateData.scheduledStart });
+              return { success: false, message: 'Invalid scheduled start date format' };
+            }
+            processedData.scheduledStart = parsedDate;
+          } else {
+            processedData.scheduledStart = null;
+          }
+        } catch (dateError) {
+          logger.error('Error parsing scheduledStart', { scheduledStart: updateData.scheduledStart, error: dateError });
+          return { success: false, message: 'Invalid scheduled start date format' };
+        }
+        
+        logger.info('Processed scheduledStart', { 
+          scheduledStart: processedData.scheduledStart 
+        });
+      }
+      
+      // Handle endDate -> scheduledEnd conversion (prioritize endDate if both exist)
+      if (updateData.endDate !== undefined) {
+        logger.info('Processing endDate', { 
+          original: updateData.endDate, 
+          type: typeof updateData.endDate 
+        });
+        
+        try {
+          if (updateData.endDate) {
+            const parsedDate = new Date(updateData.endDate);
+            if (isNaN(parsedDate.getTime())) {
+              logger.error('Invalid endDate format', { endDate: updateData.endDate });
+              return { success: false, message: 'Invalid end date format' };
+            }
+            processedData.scheduledEnd = parsedDate;
+          } else {
+            processedData.scheduledEnd = null;
+          }
+        } catch (dateError) {
+          logger.error('Error parsing endDate', { endDate: updateData.endDate, error: dateError });
+          return { success: false, message: 'Invalid end date format' };
+        }
+        
+        delete processedData.endDate;
+        // Remove scheduledEnd if it was also provided to avoid conflicts
+        if (updateData.scheduledEnd !== undefined) {
+          delete processedData.scheduledEnd;
+        }
+        logger.info('Converted endDate to scheduledEnd', { 
+          scheduledEnd: processedData.scheduledEnd 
+        });
+      } else if (updateData.scheduledEnd !== undefined) {
+        // Handle direct scheduledEnd updates only if endDate wasn't provided
+        logger.info('Processing scheduledEnd', { 
+          original: updateData.scheduledEnd, 
+          type: typeof updateData.scheduledEnd 
+        });
+        
+        try {
+          if (updateData.scheduledEnd) {
+            const parsedDate = new Date(updateData.scheduledEnd);
+            if (isNaN(parsedDate.getTime())) {
+              logger.error('Invalid scheduledEnd format', { scheduledEnd: updateData.scheduledEnd });
+              return { success: false, message: 'Invalid scheduled end date format' };
+            }
+            processedData.scheduledEnd = parsedDate;
+          } else {
+            processedData.scheduledEnd = null;
+          }
+        } catch (dateError) {
+          logger.error('Error parsing scheduledEnd', { scheduledEnd: updateData.scheduledEnd, error: dateError });
+          return { success: false, message: 'Invalid scheduled end date format' };
+        }
+        
+        logger.info('Processed scheduledEnd', { 
+          scheduledEnd: processedData.scheduledEnd 
+        });
+      }
+      
+      // Validate that end date is after start date if both are provided
+      if (processedData.scheduledStart && processedData.scheduledEnd) {
+        if (processedData.scheduledEnd <= processedData.scheduledStart) {
+          logger.error('End date must be after start date', { 
+            scheduledStart: processedData.scheduledStart, 
+            scheduledEnd: processedData.scheduledEnd 
+          });
+          return { success: false, message: 'End date must be after start date' };
+        }
+        logger.info('Date validation passed', { 
+          scheduledStart: processedData.scheduledStart, 
+          scheduledEnd: processedData.scheduledEnd 
+        });
+      }
+
+      // Add updatedAt timestamp
+      processedData.updatedAt = new Date();
+
+      logger.info('Final processed data for update', { 
+        processedData,
+        scheduledStart: processedData.scheduledStart,
+        scheduledEnd: processedData.scheduledEnd,
+        scheduledStartType: typeof processedData.scheduledStart,
+        scheduledEndType: typeof processedData.scheduledEnd
+      });
+
       const updatedExam = await prisma.exam.update({
         where: { id: examId },
-        data: {
-          ...updateData,
-          updatedAt: new Date()
-        },
+        data: processedData,
         include: {
           examCategory: {
             select: { name: true, color: true }
           }
         }
+      });
+
+      logger.info('Exam updated successfully', { 
+        examId, 
+        updatedExam,
+        storedScheduledStart: updatedExam.scheduledStart,
+        storedScheduledEnd: updatedExam.scheduledEnd
       });
 
       // Create audit log
@@ -332,7 +544,7 @@ class ExamService {
         }
       });
 
-      if (attemptCount >= exam.maxAttempts) {
+      if (attemptCount >= exam.maxRetakes) {
         return { success: false, message: 'Maximum attempts reached for this exam' };
       }
 
@@ -700,7 +912,17 @@ class ExamService {
       const where = { userId };
 
       if (examId) where.examId = examId;
-      if (status) where.status = status;
+      
+      // Handle status mapping for frontend compatibility
+      if (status === 'passed') {
+        where.isPassed = true;
+        where.status = 'COMPLETED';
+      } else if (status === 'failed') {
+        where.isPassed = false;
+        where.status = 'COMPLETED';
+      } else if (status) {
+        where.status = status;
+      }
 
       const [attempts, total] = await Promise.all([
         prisma.examAttempt.findMany({
@@ -731,6 +953,242 @@ class ExamService {
     } catch (error) {
       logger.error('Get user exam history failed', error);
       return { success: false, message: 'Failed to get exam history' };
+    }
+  }
+
+  /**
+   * Get user certificates with pagination and filters
+   */
+  async getUserCertificates(userId, options = {}) {
+    try {
+      const {
+        page = 1,
+        limit = 10,
+        examId,
+        sortBy = 'issuedAt',
+        sortOrder = 'desc'
+      } = options;
+
+      const skip = (page - 1) * limit;
+      const where = { userId };
+
+      if (examId) where.examId = examId;
+
+      const [certificates, total] = await Promise.all([
+        prisma.certificate.findMany({
+          where,
+          include: {
+            exam: {
+              include: { examCategory: true }
+            },
+            attempt: {
+              select: {
+                id: true,
+                percentage: true,
+                completedAt: true
+              }
+            },
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true
+              }
+            }
+          },
+          orderBy: { [sortBy]: sortOrder },
+          skip,
+          take: limit
+        }),
+        prisma.certificate.count({ where })
+      ]);
+
+      // Add username to each certificate
+      const certificatesWithUsername = certificates.map(cert => ({
+        ...cert,
+        userName: `${cert.user.firstName} ${cert.user.lastName}`,
+        userEmail: cert.user.email
+      }));
+
+      return {
+        success: true,
+        certificates: certificatesWithUsername,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit)
+        }
+      };
+    } catch (error) {
+      logger.error('Get user certificates failed', error);
+      return { success: false, message: 'Failed to get certificates' };
+    }
+  }
+
+  /**
+   * Generate certificate for an exam attempt
+   */
+  async generateCertificate(attemptId, userId) {
+    try {
+      const attempt = await prisma.examAttempt.findUnique({
+        where: { id: attemptId },
+        include: {
+          exam: true,
+          certificate: true,
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true
+            }
+          }
+        }
+      });
+
+      if (!attempt) {
+        return { success: false, message: 'Attempt not found' };
+      }
+
+      if (attempt.userId !== userId) {
+        return { success: false, message: 'Unauthorized' };
+      }
+
+      if (attempt.status !== 'COMPLETED') {
+        return { success: false, message: 'Attempt must be completed to generate certificate' };
+      }
+
+      if (!attempt.isPassed) {
+        return { success: false, message: 'Only passed attempts can generate certificates' };
+      }
+
+      if (attempt.certificate) {
+        return { success: false, message: 'Certificate already exists for this attempt' };
+      }
+
+      // Create certificate
+      const certificate = await prisma.certificate.create({
+        data: {
+          userId,
+          examId: attempt.examId,
+          attemptId,
+          certificateNumber: `CERT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          issuedAt: new Date(),
+          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year
+        },
+        include: {
+          exam: true,
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true
+            }
+          }
+        }
+      });
+
+      // Add username to certificate response
+      const certificateWithUsername = {
+        ...certificate,
+        userName: `${attempt.user.firstName} ${attempt.user.lastName}`,
+        userEmail: attempt.user.email
+      };
+
+      return {
+        success: true,
+        certificate: certificateWithUsername
+      };
+    } catch (error) {
+      logger.error('Generate certificate failed', error);
+      return { success: false, message: 'Failed to generate certificate' };
+    }
+  }
+
+  /**
+   * Download certificate
+   */
+  async downloadCertificate(certificateId, userId) {
+    try {
+      const certificate = await prisma.certificate.findUnique({
+        where: { id: certificateId },
+        include: {
+          exam: true,
+          attempt: true
+        }
+      });
+
+      if (!certificate) {
+        return { success: false, message: 'Certificate not found' };
+      }
+
+      if (certificate.userId !== userId) {
+        return { success: false, message: 'Unauthorized' };
+      }
+
+      // For now, return a mock PDF buffer
+      // In a real implementation, you would generate an actual PDF
+      const mockPdfBuffer = Buffer.from('Mock PDF content for certificate');
+      
+      return {
+        success: true,
+        pdfBuffer: mockPdfBuffer,
+        filename: `certificate-${certificate.certificateNumber}.pdf`
+      };
+    } catch (error) {
+      logger.error('Download certificate failed', error);
+      return { success: false, message: 'Failed to download certificate' };
+    }
+  }
+
+  /**
+   * Auto-generate certificates for existing passed exams
+   */
+  async autoGenerateCertificates(userId) {
+    try {
+      // Find all completed, passed attempts without certificates
+      const attempts = await prisma.examAttempt.findMany({
+        where: {
+          userId,
+          status: 'COMPLETED',
+          isPassed: true,
+          certificate: null
+        },
+        include: {
+          exam: true
+        }
+      });
+
+      let generatedCount = 0;
+      for (const attempt of attempts) {
+        try {
+          await prisma.certificate.create({
+            data: {
+              userId,
+              examId: attempt.examId,
+              attemptId: attempt.id,
+              certificateNumber: `CERT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              issuedAt: new Date(),
+              expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year
+            }
+          });
+          generatedCount++;
+        } catch (certError) {
+          logger.error('Failed to generate certificate for attempt', { attemptId: attempt.id, error: certError });
+        }
+      }
+
+      return {
+        success: true,
+        message: `Generated ${generatedCount} certificates`,
+        generatedCount
+      };
+    } catch (error) {
+      logger.error('Auto-generate certificates failed', error);
+      return { success: false, message: 'Failed to auto-generate certificates' };
     }
   }
 
@@ -779,9 +1237,16 @@ class ExamService {
         prisma.exam.count({ where })
       ]);
 
+      // Format exam data for frontend - map database fields to frontend expected fields
+      const formattedExams = exams.map(exam => ({
+        ...exam,
+        startDate: exam.scheduledStart,
+        endDate: exam.scheduledEnd
+      }));
+
       return {
         success: true,
-        exams,
+        exams: formattedExams,
         pagination: {
           page,
           limit,
@@ -804,7 +1269,12 @@ class ExamService {
         by: ['status'],
         where: { userId },
         _count: { id: true },
-        _avg: { percentage: true, score: true }
+        _avg: { 
+          percentage: true, 
+          obtainedMarks: true,
+          totalMarks: true,
+          timeSpent: true
+        }
       });
 
       const totalAttempts = await prisma.examAttempt.count({
@@ -819,6 +1289,9 @@ class ExamService {
         where: { userId, isActive: true }
       });
 
+      // Find completed attempts stats
+      const completedStats = stats.find(s => s.status === 'COMPLETED');
+
       return {
         success: true,
         stats: {
@@ -826,8 +1299,9 @@ class ExamService {
           passedAttempts,
           certificates,
           passRate: totalAttempts > 0 ? (passedAttempts / totalAttempts) * 100 : 0,
-          averageScore: stats.find(s => s.status === 'COMPLETED')?._avg.score || 0,
-          averagePercentage: stats.find(s => s.status === 'COMPLETED')?._avg.percentage || 0
+          averageScore: completedStats?._avg.obtainedMarks || 0,
+          averagePercentage: completedStats?._avg.percentage || 0,
+          averageTimeSpent: completedStats?._avg.timeSpent || 0
         }
       };
     } catch (error) {
@@ -953,4 +1427,4 @@ class ExamService {
   }
 }
 
-module.exports = new ExamService(); 
+module.exports = new ExamService();

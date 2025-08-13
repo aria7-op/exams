@@ -831,6 +831,39 @@ class AdminController {
   }
 
   /**
+   * Get exam details (admin)
+   */
+  async getExamDetails(req, res) {
+    try {
+      const { examId } = req.params;
+
+      const result = await examService.getExamById(examId);
+
+      if (!result.success) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            message: result.message || 'Exam not found'
+          }
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        data: { exam: result.exam }
+      });
+    } catch (error) {
+      logger.error('Get exam details failed', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          message: 'Failed to get exam details'
+        }
+      });
+    }
+  }
+
+  /**
    * Update exam
    */
   async updateExam(req, res) {

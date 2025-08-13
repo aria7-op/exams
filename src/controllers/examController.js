@@ -87,7 +87,7 @@ class ExamController {
       const { examId } = req.params;
       const userId = req.user.id;
 
-      const result = await examService.getExamById(examId, userId);
+      const result = await examService.getExamById(examId);
 
       if (!result.success) {
         return res.status(404).json({

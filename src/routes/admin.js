@@ -47,6 +47,7 @@ router.get('/questions/analytics', adminController.getQuestionAnalytics);
 // ========================================
 router.post('/exams', adminOrSuperAdmin, adminController.createExam);
 router.get('/exams', adminController.getAllExams);
+router.get('/exams/:examId', adminOrSuperAdmin, adminController.getExamDetails);
 router.put('/exams/:examId', adminOrSuperAdmin, adminController.updateExam);
 router.delete('/exams/:examId', adminOrSuperAdmin, adminController.deleteExam);
 router.patch('/exams/:examId/approve', adminOrSuperAdmin, adminController.approveExam);

@@ -42,18 +42,129 @@ class ExamBookingService {
 
       // Check if exam is within scheduled time window
       const now = new Date();
-      if (exam.scheduledStart && now < exam.scheduledStart) {
-        return { success: false, message: 'Exam is not yet available for booking' };
+      
+      // Debug logging
+      logger.info(`Exam booking check for exam ${examId}:`, {
+        examTitle: exam.title,
+        scheduledStart: exam.scheduledStart,
+        scheduledEnd: exam.scheduledEnd,
+        currentTime: now,
+        isActive: exam.isActive,
+        isPublic: exam.isPublic,
+        allowRetakes: exam.allowRetakes,
+        maxRetakes: exam.maxRetakes,
+        userAttempts: existingAttempts.length
+      });
+      
+      // Handle scheduled start date
+      if (exam.scheduledStart) {
+        const scheduledStart = new Date(exam.scheduledStart);
+        if (now < scheduledStart) {
+          const timeUntilStart = Math.ceil((scheduledStart - now) / (1000 * 60 * 60 * 24)); // Days until start
+          if (timeUntilStart > 1) {
+            return { 
+              success: false, 
+              message: `Exam will be available for booking in ${timeUntilStart} days (starts ${scheduledStart.toLocaleDateString()})` 
+            };
+          } else {
+            const hoursUntilStart = Math.ceil((scheduledStart - now) / (1000 * 60 * 60));
+            return { 
+              success: false, 
+              message: `Exam will be available for booking in ${hoursUntilStart} hours (starts ${scheduledStart.toLocaleDateString()})` 
+            };
+          }
+        }
       }
 
-      if (exam.scheduledEnd && now > exam.scheduledEnd) {
-        return { success: false, message: 'Exam booking period has ended' };
+      // Handle scheduled end date
+      if (exam.scheduledEnd) {
+        const scheduledEnd = new Date(exam.scheduledEnd);
+        if (now > scheduledEnd) {
+          return { 
+            success: false, 
+            message: `Exam booking period ended on ${scheduledEnd.toLocaleDateString()}` 
+          };
+        }
       }
 
+      // If no scheduled dates are set, exam is always available
+      if (!exam.scheduledStart && !exam.scheduledEnd) {
+        logger.info(`Exam ${examId} has no scheduled dates - always available for booking`);
+        return { success: true };
+      }
+
+      // If we reach here, the exam is within the scheduled window
+      logger.info(`Exam ${examId} is within scheduled window - available for booking`);
       return { success: true };
     } catch (error) {
       logger.error('Can user book exam check failed', error);
       return { success: false, message: 'Failed to validate booking eligibility' };
+    }
+  }
+
+  /**
+   * Debug method to check exam availability status
+   */
+  async getExamAvailabilityStatus(examId) {
+    try {
+      const exam = await prisma.exam.findUnique({
+        where: { id: examId },
+        select: {
+          id: true,
+          title: true,
+          isActive: true,
+          isPublic: true,
+          scheduledStart: true,
+          scheduledEnd: true,
+          allowRetakes: true,
+          maxRetakes: true
+        }
+      });
+
+      if (!exam) {
+        return { success: false, message: 'Exam not found' };
+      }
+
+      const now = new Date();
+      const scheduledStart = exam.scheduledStart ? new Date(exam.scheduledStart) : null;
+      const scheduledEnd = exam.scheduledEnd ? new Date(exam.scheduledEnd) : null;
+
+      const availability = {
+        examId: exam.id,
+        title: exam.title,
+        isActive: exam.isActive,
+        isPublic: exam.isPublic,
+        currentTime: now,
+        scheduledStart,
+        scheduledEnd,
+        allowRetakes: exam.allowRetakes,
+        maxRetakes: exam.maxRetakes,
+        status: 'UNKNOWN'
+      };
+
+      // Determine availability status
+      if (!exam.isActive) {
+        availability.status = 'INACTIVE';
+        availability.reason = 'Exam is not active';
+      } else if (!exam.isPublic) {
+        availability.status = 'NOT_PUBLIC';
+        availability.reason = 'Exam is not public';
+      } else if (scheduledStart && now < scheduledStart) {
+        availability.status = 'NOT_STARTED';
+        availability.reason = `Exam starts on ${scheduledStart.toLocaleDateString()}`;
+        availability.timeUntilStart = Math.ceil((scheduledStart - now) / (1000 * 60 * 60 * 24));
+      } else if (scheduledEnd && now > scheduledEnd) {
+        availability.status = 'ENDED';
+        availability.reason = `Exam ended on ${scheduledEnd.toLocaleDateString()}`;
+      } else {
+        availability.status = 'AVAILABLE';
+        availability.reason = 'Exam is available for booking';
+      }
+
+      return { success: true, availability };
+    } catch (error) {
+      logger.error('Get exam availability status failed', error);
+      return { success: false, message: 'Failed to get exam availability status' };
     }
   }
 
@@ -400,14 +511,6 @@ class ExamBookingService {
         }
       });
 
-      // Send exam started notification
-      if (global.notificationService) {
-        await global.notificationService.notifyExamStarted({
-          ...attempt,
-          exam: booking.exam
-        });
-      }
-
       return { success: true, attempt, exam: booking.exam, booking };
     } catch (error) {
       logger.error('Start exam attempt failed', error);
@@ -432,17 +535,46 @@ class ExamBookingService {
         where.examCategoryId = examCategoryId;
       }
 
-      // Add scheduling constraints
+      // Add scheduling constraints - exams are available if:
+      // 1. No scheduled dates are set (always available)
+      // 2. Current time is within the scheduled window
       const now = new Date();
+      
+      // Build the date filtering logic
       where.OR = [
-        { scheduledStart: null },
-        { scheduledStart: { lte: now } }
+        // No scheduled dates - always available
+        {
+          AND: [
+            { scheduledStart: null },
+            { scheduledEnd: null }
+          ]
+        },
+        // Has scheduled start but no end - available after start
+        {
+          AND: [
+            { scheduledStart: { not: null } },
+            { scheduledStart: { lte: now } },
+            { scheduledEnd: null }
+          ]
+        },
+        // Has scheduled end but no start - available before end
+        {
+          AND: [
+            { scheduledStart: null },
+            { scheduledEnd: { not: null } },
+            { scheduledEnd: { gte: now } }
+          ]
+        },
+        // Has both start and end - available within window
+        {
+          AND: [
+            { scheduledStart: { not: null } },
+            { scheduledStart: { lte: now } },
+            { scheduledEnd: { not: null } },
+            { scheduledEnd: { gte: now } }
+          ]
+        }
       ];
-
-      where.OR.push(
-        { scheduledEnd: null },
-        { scheduledEnd: { gte: now } }
-      );
 
       const [exams, total] = await Promise.all([
         prisma.exam.findMany({
@@ -464,7 +596,7 @@ class ExamBookingService {
         prisma.exam.count({ where })
       ]);
 
-      // Filter out exams user can't take
+      // Filter out exams user can't take based on retake policies
       const availableExams = exams.filter(exam => {
         const canTake = exam.allowRetakes || exam._count.attempts === 0;
         const withinRetakeLimit = exam.allowRetakes ? 

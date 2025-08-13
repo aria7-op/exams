@@ -11,8 +11,11 @@ const validateExamCreation = (data) => {
     description: Joi.string().max(1000).optional().messages({
       'string.max': 'Description cannot exceed 1000 characters'
     }),
-    examCategoryId: Joi.string().required().messages({
-      'any.required': 'Exam category is required'
+    examCategoryId: Joi.string().optional().messages({
+      'string.base': 'Exam category ID must be a string'
+    }),
+    categoryId: Joi.string().optional().messages({
+      'string.base': 'Category ID must be a string'
     }),
     duration: Joi.number().integer().min(1).max(480).required().messages({
       'number.base': 'Duration must be a number',
@@ -21,19 +24,29 @@ const validateExamCreation = (data) => {
       'number.max': 'Duration cannot exceed 480 minutes (8 hours)',
       'any.required': 'Duration is required'
     }),
-    totalMarks: Joi.number().integer().min(1).max(1000).required().messages({
+    totalMarks: Joi.number().integer().min(1).max(1000).optional().messages({
       'number.base': 'Total marks must be a number',
       'number.integer': 'Total marks must be a whole number',
       'number.min': 'Total marks must be at least 1',
-      'number.max': 'Total marks cannot exceed 1000',
-      'any.required': 'Total marks is required'
+      'number.max': 'Total marks cannot exceed 1000'
     }),
-    passingMarks: Joi.number().integer().min(1).max(Joi.ref('totalMarks')).required().messages({
+    totalQuestions: Joi.number().integer().min(1).max(1000).optional().messages({
+      'number.base': 'Total questions must be a number',
+      'number.integer': 'Total questions must be a whole number',
+      'number.min': 'Total questions must be at least 1',
+      'number.max': 'Total questions cannot exceed 1000'
+    }),
+    passingMarks: Joi.number().integer().min(1).max(Joi.ref('totalMarks')).optional().messages({
       'number.base': 'Passing marks must be a number',
       'number.integer': 'Passing marks must be a whole number',
       'number.min': 'Passing marks must be at least 1',
-      'number.max': 'Passing marks cannot exceed total marks',
-      'any.required': 'Passing marks is required'
+      'number.max': 'Passing marks cannot exceed total marks'
+    }),
+    passingScore: Joi.number().integer().min(1).max(100).optional().messages({
+      'number.base': 'Passing score must be a number',
+      'number.integer': 'Passing score must be a whole number',
+      'number.min': 'Passing score must be at least 1',
+      'number.max': 'Passing score cannot exceed 100'
     }),
     price: Joi.number().precision(2).min(0).max(10000).required().messages({
       'number.base': 'Price must be a number',
@@ -71,9 +84,6 @@ const validateExamCreation = (data) => {
     }),
     instructions: Joi.string().max(2000).optional(),
     rules: Joi.string().max(2000).optional(),
-    maxAttempts: Joi.number().integer().min(1).max(10).default(1),
-    retakeDelay: Joi.number().integer().min(0).default(0),
-    difficultyDistribution: Joi.object().optional(),
     // Accept both frontend format (startDate/endDate) and backend format (scheduledStart/scheduledEnd)
     startDate: Joi.date().min('now').optional().messages({
       'date.min': 'Start date cannot be in the past'
@@ -95,9 +105,26 @@ const validateExamCreation = (data) => {
     trueFalseQuestionsCount: Joi.number().integer().min(0).default(0),
     matchingQuestionsCount: Joi.number().integer().min(0).default(0),
     orderingQuestionsCount: Joi.number().integer().min(0).default(0)
+  }).custom((value, helpers) => {
+    // Ensure at least one of examCategoryId or categoryId is provided
+    if (!value.examCategoryId && !value.categoryId) {
+      return helpers.error('any.required', { message: 'Either examCategoryId or categoryId is required' });
+    }
+    
+    // Ensure at least one of totalMarks or totalQuestions is provided
+    if (!value.totalMarks && !value.totalQuestions) {
+      return helpers.error('any.required', { message: 'Either totalMarks or totalQuestions is required' });
+    }
+    
+    // Ensure at least one of passingMarks or passingScore is provided
+    if (!value.passingMarks && !value.passingScore) {
+      return helpers.error('any.required', { message: 'Either passingMarks or passingScore is required' });
+    }
+    
+    return value;
   });
 
-  return schema.validate(data);
+  return schema.unknown().validate(data);
 };
 
 // Exam update validation
@@ -158,9 +185,6 @@ const validateExamUpdate = (data) => {
     }),
     instructions: Joi.string().max(2000).optional(),
     rules: Joi.string().max(2000).optional(),
-    maxAttempts: Joi.number().integer().min(1).max(10).optional(),
-    retakeDelay: Joi.number().integer().min(0).optional(),
-    difficultyDistribution: Joi.object().optional(),
     // Accept both frontend format (startDate/endDate) and backend format (scheduledStart/scheduledEnd)
     startDate: Joi.date().optional(),
     endDate: Joi.date().optional(),
@@ -176,7 +200,7 @@ const validateExamUpdate = (data) => {
     orderingQuestionsCount: Joi.number().integer().min(0).optional()
   });
 
-  return schema.validate(data);
+  return schema.unknown().validate(data);
 };
 
 // Question creation validation

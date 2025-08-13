@@ -4,7 +4,7 @@ const ExamBookingService = require('../services/examBookingService');
 const questionRandomizationService = require('../services/questionRandomizationService');
 const paymentService = require('../services/paymentService');
 const notificationService = require('../services/notificationService');
-const { validateExamBooking, validateBookingUpdate } = require('../validators/examBookingValidator');
+const { validateExamBooking, validateAdminExamBooking, validateBookingUpdate } = require('../validators/examBookingValidator');
 
 const prisma = new PrismaClient();
 const examBookingService = new ExamBookingService();
@@ -61,6 +61,14 @@ class ExamBookingController {
         });
       }
 
+      logger.info('Exam details retrieved:', {
+        examId: exam.id,
+        title: exam.title,
+        questionCount: exam.questions.length,
+        isActive: exam.isActive,
+        isPublic: exam.isPublic
+      });
+
       // Check if exam is available for booking
       if (!exam.isActive || !exam.isPublic) {
         return res.status(400).json({
@@ -114,25 +122,40 @@ class ExamBookingController {
 
         // Generate randomized questions for this specific booking
         const questionCount = exam.questions.length;
-        const randomizedQuestions = await questionRandomizationService.generateRandomQuestions({
-          examId,
-          userId,
-          questionCount,
-          examCategoryId: exam.examCategoryId,
-          overlapPercentage: exam.questionOverlapPercentage
-        });
+        
+        if (questionCount === 0) {
+          logger.warn(`Exam ${examId} has no questions assigned. Creating booking without questions.`);
+        } else {
+          logger.info(`Generating ${questionCount} randomized questions for exam ${examId}`);
+          
+          const randomizedQuestions = await questionRandomizationService.generateRandomQuestions({
+            examId,
+            userId,
+            questionCount,
+            examCategoryId: exam.examCategoryId,
+            overlapPercentage: exam.questionOverlapPercentage
+          });
 
-        // Create exam questions for this booking with randomization
-        const examQuestions = randomizedQuestions.map((question, index) => ({
-          examId,
-          questionId: question.id,
-          order: index + 1,
-          marks: question.marks
-        }));
+          if (!randomizedQuestions || randomizedQuestions.length === 0) {
+            throw new Error('Failed to generate randomized questions');
+          }
 
-        await tx.examQuestion.createMany({
-          data: examQuestions
-        });
+          logger.info(`Generated ${randomizedQuestions.length} randomized questions successfully`);
+
+          // Create exam questions for this booking with randomization
+          const examQuestions = randomizedQuestions.map((question, index) => ({
+            examId,
+            questionId: question.id,
+            order: index + 1,
+            marks: question.marks
+          }));
+
+          await tx.examQuestion.createMany({
+            data: examQuestions
+          });
+
+          logger.info(`Created ${examQuestions.length} exam questions for booking`);
+        }
 
         // Create audit log
         await tx.auditLog.create({
@@ -145,7 +168,7 @@ class ExamBookingController {
               examId,
               examTitle: exam.title,
               totalAmount,
-              questionCount: randomizedQuestions.length,
+              questionCount: randomizedQuestions ? randomizedQuestions.length : 0,
               scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
               randomizationAlgorithm: process.env.QUESTION_RANDOMIZATION_ALGORITHM || 'weighted_random'
             },
@@ -156,13 +179,19 @@ class ExamBookingController {
 
         return {
           booking: newBooking,
-          questionCount: randomizedQuestions.length
+          questionCount: randomizedQuestions ? randomizedQuestions.length : 0
         };
       });
 
       // Generate bill for the booking
-      const billingService = require('../services/billingService');
-      const bill = await billingService.generateBill(booking.booking.id);
+      let bill = null;
+      try {
+        const billingService = require('../services/billingService');
+        bill = await billingService.generateBill(booking.booking.id);
+      } catch (billingError) {
+        logger.warn('Failed to generate bill for booking:', billingError);
+        // Continue without bill - this is not critical
+      }
 
       // Send notification
       if (global.notificationService) {
@@ -553,9 +582,17 @@ class ExamBookingController {
    */
   async createBookingForUser(req, res) {
     try {
+      // Debug logging
+      logger.info('Admin booking creation request:', {
+        body: req.body,
+        user: req.user.id,
+        headers: req.headers
+      });
+
       // Validate request
-      const { error, value } = validateExamBooking(req.body);
+      const { error, value } = validateAdminExamBooking(req.body);
       if (error) {
+        logger.error('Admin booking validation failed:', error);
         return res.status(400).json({
           success: false,
           error: {
@@ -565,8 +602,44 @@ class ExamBookingController {
         });
       }
 
+      logger.info('Admin booking validation passed:', value);
+
       const { userId, examId, scheduledAt, attemptsAllowed, notes } = value;
       const adminId = req.user.id;
+
+      logger.info('Extracted booking data:', {
+        userId,
+        examId,
+        scheduledAt,
+        attemptsAllowed,
+        notes,
+        scheduledAtType: typeof scheduledAt
+      });
+
+      // Convert scheduledAt to Date if it's a string
+      let finalScheduledAt = null;
+      if (scheduledAt) {
+        try {
+          finalScheduledAt = new Date(scheduledAt);
+          if (isNaN(finalScheduledAt.getTime())) {
+            return res.status(400).json({
+              success: false,
+              error: {
+                message: 'Invalid scheduled date format'
+              }
+            });
+          }
+          logger.info('Converted scheduledAt to Date:', finalScheduledAt);
+        } catch (dateError) {
+          logger.error('Failed to parse scheduledAt:', dateError);
+          return res.status(400).json({
+            success: false,
+            error: {
+              message: 'Invalid scheduled date format'
+            }
+          });
+        }
+      }
 
       // Check if user exists
       const user = await prisma.user.findUnique({
@@ -611,18 +684,18 @@ class ExamBookingController {
       }
 
       // Check if exam is available for booking
-      if (!exam.isActive || !exam.isPublic) {
+      if (!exam.isActive) {
         return res.status(400).json({
           success: false,
           error: {
-            message: 'Exam is not available for booking'
+            message: 'Exam is not active'
           }
         });
       }
 
       // Check scheduling constraints
-      if (scheduledAt) {
-        const schedulingValidation = await examBookingService.validateScheduling(examId, scheduledAt);
+      if (finalScheduledAt) {
+        const schedulingValidation = await examBookingService.validateScheduling(examId, finalScheduledAt);
         if (!schedulingValidation.success) {
           return res.status(400).json(schedulingValidation);
         }
@@ -638,7 +711,7 @@ class ExamBookingController {
           data: {
             userId,
             examId,
-            scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
+            scheduledAt: finalScheduledAt,
             status: 'CONFIRMED', // Admin bookings are automatically confirmed
             totalAmount,
             currency: exam.currency,
@@ -695,8 +768,9 @@ class ExamBookingController {
             details: {
               targetUserId: userId,
               examTitle: exam.title,
-              scheduledAt: newBooking.scheduledAt,
-              totalAmount: newBooking.totalAmount
+              scheduledAt: finalScheduledAt,
+              totalAmount: newBooking.totalAmount,
+              questionCount: questionCount
             },
             ipAddress: req.ip,
             userAgent: req.get('User-Agent')
@@ -707,18 +781,29 @@ class ExamBookingController {
       });
 
       // Generate bill for the booking
-      const billingService = require('../services/billingService');
-      const bill = await billingService.generateBill(booking.id);
+      let bill = null;
+      try {
+        const billingService = require('../services/billingService');
+        bill = await billingService.generateBill(booking.id);
+      } catch (billingError) {
+        logger.warn('Failed to generate bill for booking:', billingError);
+        // Continue without bill - this is not critical
+      }
 
       // Send notification
-      await notificationService.sendBookingConfirmation(booking.user.email, {
-        bookingId: booking.id,
-        examTitle: booking.exam.title,
-        scheduledAt: booking.scheduledAt,
-        totalAmount: booking.totalAmount,
-        currency: booking.currency,
-        firstName: booking.user.firstName
-      });
+      try {
+        await notificationService.sendBookingConfirmation(booking.user.email, {
+          bookingId: booking.id,
+          examTitle: booking.exam.title,
+          scheduledAt: booking.scheduledAt,
+          totalAmount: booking.totalAmount,
+          currency: booking.currency,
+          firstName: booking.user.firstName
+        });
+      } catch (notificationError) {
+        logger.warn('Failed to send booking confirmation notification:', notificationError);
+        // Continue without notification - this is not critical
+      }
 
       // Log the booking creation
       logger.logExam('ADMIN_BOOKING_CREATED', examId, userId, {
