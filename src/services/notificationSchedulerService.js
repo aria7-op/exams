@@ -116,6 +116,11 @@ class NotificationSchedulerService {
           reminderType = '15m';
           shouldSendReminder = !(await this.hasRecentReminder(booking.id, '15m'));
         }
+        // Check if we should send a 5-minute reminder
+        else if (hoursUntilExam <= 0.083 && hoursUntilExam > 0.05) { // 5 minutes = 0.083 hours
+          reminderType = '5m';
+          shouldSendReminder = !(await this.hasRecentReminder(booking.id, '5m'));
+        }
 
         if (shouldSendReminder && global.notificationService) {
           await global.notificationService.notifyExamReminder(booking, reminderType);

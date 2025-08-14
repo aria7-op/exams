@@ -10,6 +10,7 @@ router.get('/', async (req, res) => {
       page = 1, 
       limit = 10, 
       categoryId, 
+      examCategoryId, // Add support for examCategoryId
       difficulty, 
       type, 
       search,
@@ -23,6 +24,11 @@ router.get('/', async (req, res) => {
     // Apply filters
     if (categoryId) {
       where.categoryId = parseInt(categoryId);
+    }
+
+    // Support for examCategoryId (string ID)
+    if (examCategoryId) {
+      where.examCategoryId = examCategoryId;
     }
 
     if (difficulty) {
@@ -69,7 +75,7 @@ router.get('/', async (req, res) => {
       prisma.question.findMany({
         where,
         include: {
-          category: true,
+          exam_categories: true,
           tags: true,
           _count: {
             select: {
@@ -114,7 +120,7 @@ router.get('/:id', async (req, res) => {
     const question = await prisma.question.findUnique({
       where: { id: parseInt(id) },
       include: {
-        category: true,
+        exam_categories: true,
         tags: true,
         examQuestions: {
           include: {

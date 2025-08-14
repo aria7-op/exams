@@ -61,16 +61,11 @@ const validateExamCreation = (data) => {
     isActive: Joi.boolean().default(true),
     isPublic: Joi.boolean().default(false),
     allowRetakes: Joi.boolean().default(false),
-    maxRetakes: Joi.when('allowRetakes', {
-      is: true,
-      then: Joi.number().integer().min(1).max(10).required(),
-      otherwise: Joi.number().integer().min(0).max(0).default(0)
-    }).messages({
+    maxRetakes: Joi.number().integer().min(0).max(100000).default(0).messages({
       'number.base': 'Max retakes must be a number',
       'number.integer': 'Max retakes must be a whole number',
-      'number.min': 'Max retakes must be at least 1 when retakes are allowed',
-      'number.max': 'Max retakes cannot exceed 10',
-      'any.required': 'Max retakes is required when retakes are allowed'
+      'number.min': 'Max retakes cannot be negative',
+      'number.max': 'Max retakes cannot exceed 100000'
     }),
     showResults: Joi.boolean().default(true),
     showAnswers: Joi.boolean().default(false),
@@ -167,11 +162,11 @@ const validateExamUpdate = (data) => {
     isActive: Joi.boolean().optional(),
     isPublic: Joi.boolean().optional(),
     allowRetakes: Joi.boolean().optional(),
-    maxRetakes: Joi.number().integer().min(0).max(10).optional().messages({
+    maxRetakes: Joi.number().integer().min(0).max(100000).optional().messages({
       'number.base': 'Max retakes must be a number',
       'number.integer': 'Max retakes must be a whole number',
       'number.min': 'Max retakes cannot be negative',
-      'number.max': 'Max retakes cannot exceed 10'
+      'number.max': 'Max retakes cannot exceed 100000'
     }),
     showResults: Joi.boolean().optional(),
     showAnswers: Joi.boolean().optional(),

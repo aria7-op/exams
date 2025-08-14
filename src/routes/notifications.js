@@ -119,6 +119,46 @@ router.patch('/read-all', async (req, res) => {
   }
 });
 
+// Test notification endpoint (for debugging)
+router.post('/test', auth, async (req, res) => {
+  try {
+    const { userId, type, title, message, priority, channels } = req.body;
+    
+    logger.info('🧪 Test notification requested:', { userId, type, title, message, priority, channels });
+    
+    if (!global.notificationService) {
+      return res.status(500).json({
+        success: false,
+        error: { message: 'Notification service not available' }
+      });
+    }
+
+    // Send test notification
+    const result = await global.notificationService.sendNotification({
+      userId,
+      type,
+      title,
+      message,
+      priority,
+      channels: channels || ['database', 'websocket']
+    });
+
+    logger.info('🧪 Test notification result:', result);
+
+    res.status(200).json({
+      success: true,
+      message: 'Test notification sent',
+      data: result
+    });
+  } catch (error) {
+    logger.error('Test notification failed', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to send test notification' }
+    });
+  }
+});
+
 // Delete notification
 router.delete('/:notificationId', async (req, res) => {
   try {
@@ -143,42 +183,6 @@ router.delete('/:notificationId', async (req, res) => {
     res.status(500).json({
       success: false,
       error: { message: 'Failed to delete notification' }
-    });
-  }
-});
-
-// Send test notification (admin only)
-router.post('/test', async (req, res) => {
-  try {
-    // Check if user is admin
-    if (!['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
-      return res.status(403).json({
-        success: false,
-        error: { message: 'Access denied. Admin role required.' }
-      });
-    }
-
-    const { userId, title, message, type = 'SYSTEM_ALERT', priority = 'normal' } = req.body;
-    
-    const result = await global.notificationService.sendNotification({
-      userId: userId || req.user.id,
-      type,
-      title,
-      message,
-      priority,
-      channels: ['websocket', 'database']
-    });
-
-    res.status(200).json({
-      success: true,
-      message: 'Test notification sent',
-      data: result
-    });
-  } catch (error) {
-    logger.error('Send test notification failed', error);
-    res.status(500).json({
-      success: false,
-      error: { message: 'Failed to send test notification' }
     });
   }
 });

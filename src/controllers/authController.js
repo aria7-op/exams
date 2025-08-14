@@ -4,12 +4,11 @@ const { PrismaClient } = require('@prisma/client');
 const { v4: uuidv4 } = require('uuid');
 const logger = require('../config/logger');
 const AuthService = require('../services/authService');
-const EmailService = require('../services/emailService');
 const { validateUserCreation, validateLogin, validatePasswordReset } = require('../validators/authValidator');
 
 const prisma = new PrismaClient();
 const authService = new AuthService();
-const emailService = new EmailService();
+// const emailService = new EmailService(); // Email service disabled
 
 class AuthController {
   /**
@@ -46,11 +45,23 @@ class AuthController {
       } = value;
 
       // Check if user already exists
+      const normalizedEmail = email.toLowerCase().trim();
+      logger.info('User registration attempt:', { 
+        originalEmail: email, 
+        normalizedEmail, 
+        timestamp: new Date().toISOString()
+      });
+
       const existingUser = await prisma.user.findUnique({
-        where: { email: email.toLowerCase() }
+        where: { email: normalizedEmail }
       });
 
       if (existingUser) {
+        logger.warn('Registration failed - email already exists:', { 
+          email: normalizedEmail, 
+          existingUserId: existingUser.id,
+          existingUserCreatedAt: existingUser.createdAt
+        });
         return res.status(409).json({
           success: false,
           error: {
@@ -59,70 +70,115 @@ class AuthController {
         });
       }
 
+      // Double-check with case-insensitive search
+      const caseInsensitiveCheck = await prisma.user.findFirst({
+        where: {
+          email: {
+            contains: normalizedEmail,
+            mode: 'insensitive'
+          }
+        }
+      });
+
+      if (caseInsensitiveCheck && caseInsensitiveCheck.email.toLowerCase() !== normalizedEmail) {
+        logger.warn('Registration failed - similar email exists:', { 
+          requestedEmail: normalizedEmail, 
+          existingEmail: caseInsensitiveCheck.email,
+          existingUserId: caseInsensitiveCheck.id
+        });
+        return res.status(409).json({
+          success: false,
+          error: {
+            message: 'User with a similar email already exists'
+          }
+        });
+      }
+
+      logger.info('No existing user found, proceeding with registration');
+
       // Hash password
       const saltRounds = parseInt(process.env.BCRYPT_ROUNDS) || 12;
       const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-      // Create user
-      const user = await prisma.user.create({
-        data: {
-          email: email.toLowerCase(),
-          password: hashedPassword,
-          firstName,
-          lastName,
-          role,
-          phone,
-          dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-          gender,
-          address,
-          departmentId,
-          profilePicture,
-          status,
-          isPhoneVerified,
-          emailVerificationToken: uuidv4(),
-          isEmailVerified: role === 'STUDENT' ? false : true // Auto-verify admin users
-        },
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          role: true,
-          phone: true,
-          dateOfBirth: true,
-          gender: true,
-          address: true,
-          departmentId: true,
-          profilePicture: true,
-          status: true,
-          isPhoneVerified: true,
-          isEmailVerified: true,
-          isActive: true,
-          createdAt: true
+      // Create user with transaction to ensure atomicity
+      const user = await prisma.$transaction(async (tx) => {
+        // Final check inside transaction to prevent race conditions
+        const finalCheck = await tx.user.findUnique({
+          where: { email: normalizedEmail }
+        });
+
+        if (finalCheck) {
+          throw new Error('User with this email already exists (race condition detected)');
         }
+
+        // Create user
+        return await tx.user.create({
+          data: {
+            email: normalizedEmail,
+            password: hashedPassword,
+            firstName,
+            lastName,
+            role,
+            phone,
+            dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+            gender,
+            address,
+            departmentId,
+            profilePicture,
+            status,
+            isPhoneVerified,
+            emailVerificationToken: null, // No email verification needed
+            isEmailVerified: true // Auto-verify all users since no email verification
+          },
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+            phone: true,
+            dateOfBirth: true,
+            gender: true,
+            address: true,
+            departmentId: true,
+            profilePicture: true,
+            status: true,
+            isPhoneVerified: true,
+            isEmailVerified: true,
+            isActive: true,
+            createdAt: true
+          }
+        });
       });
 
-      // Send verification email for students
-      if (role === 'STUDENT' && !user.isEmailVerified) {
-        await emailService.sendVerificationEmail(user.email, user.emailVerificationToken);
-      }
+      // Email verification is disabled - all users are auto-verified
+      logger.info('User registered successfully - email verification disabled', { 
+        userId: user.id, 
+        email: user.email, 
+        role: user.role 
+      });
 
       // Create audit log
-      await prisma.auditLog.create({
-        data: {
-          userId: req.user?.id || null,
-          action: 'USER_REGISTERED',
-          resource: 'USER',
-          resourceId: user.id,
-          details: {
-            registeredUser: user.email,
-            role: user.role,
-            registeredBy: req.user?.id || 'system'
-          },
-          ipAddress: req.ip,
-          userAgent: req.get('User-Agent')
-        }
-      });
+      try {
+        await prisma.auditLog.create({
+          data: {
+            userId: req.user?.id || null,
+            action: 'USER_REGISTERED',
+            resource: 'USER',
+            resourceId: user.id,
+            details: {
+              registeredUser: user.email,
+              role: user.role,
+              emailVerificationDisabled: true
+            },
+            ipAddress: req.ip,
+            userAgent: req.get('User-Agent')
+          }
+        });
+      } catch (auditError) {
+        logger.error('Failed to create audit log:', auditError);
+        // Don't fail the user creation if audit log fails
+      }
 
       // Send welcome notification
       if (global.notificationService) {
@@ -137,20 +193,29 @@ class AuthController {
         registeredBy: req.user?.id || 'system'
       });
 
+      // Return success response
       res.status(201).json({
         success: true,
         message: 'User registered successfully',
-        data: {
-          user,
-          requiresVerification: !user.isEmailVerified
-        }
+        data: { user }
       });
     } catch (error) {
       logger.error('Registration failed', error);
+      
+      // Check if this is a duplicate email error from transaction
+      if (error.message.includes('already exists')) {
+        return res.status(409).json({
+          success: false,
+          error: {
+            message: error.message
+          }
+        });
+      }
+      
       res.status(500).json({
         success: false,
         error: {
-          message: 'Registration failed'
+          message: 'Failed to register user'
         }
       });
     }

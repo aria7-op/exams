@@ -511,6 +511,26 @@ class ExamBookingService {
         }
       });
 
+      // Send exam started notification
+      try {
+        if (global.notificationService) {
+          await global.notificationService.notifyExamStarted({
+            id: attempt.id,
+            userId,
+            examId: booking.examId,
+            exam: {
+              id: booking.exam.id,
+              title: booking.exam.title,
+              duration: booking.exam.duration
+            }
+          });
+          logger.info(`🔔 Sent exam started notification to user ${userId}`);
+        }
+      } catch (notificationError) {
+        logger.warn('Failed to send exam started notification:', notificationError);
+        // Continue without notification - this is not critical
+      }
+
       return { success: true, attempt, exam: booking.exam, booking };
     } catch (error) {
       logger.error('Start exam attempt failed', error);
@@ -816,6 +836,41 @@ class ExamBookingService {
           userAgent: 'admin-update'
         }
       });
+
+      // Send notification to student about status change
+      try {
+        if (global.notificationService) {
+          if (status === 'CONFIRMED' && booking.status !== 'CONFIRMED') {
+            // Booking was just confirmed
+            await global.notificationService.notifyBookingConfirmed(updatedBooking);
+            logger.info(`🔔 Sent booking confirmation notification to user ${booking.userId}`);
+          } else if (status === 'CANCELLED' && booking.status !== 'CANCELLED') {
+            // Booking was just cancelled
+            await global.notificationService.notifyBookingCancelled(updatedBooking, notes);
+            logger.info(`🔔 Sent booking cancellation notification to user ${booking.userId}`);
+          } else if (status === 'RESCHEDULED' && booking.status !== 'RESCHEDULED') {
+            // Booking was rescheduled
+            await global.notificationService.sendPersonalNotification(booking.userId, {
+              type: 'EXAM_RESCHEDULED',
+              title: '📅 Exam Rescheduled',
+              message: `Your exam "${updatedBooking.exam.title}" has been rescheduled. Please check your new schedule.`,
+              priority: 'high',
+              data: {
+                bookingId: updatedBooking.id,
+                examId: updatedBooking.examId,
+                examTitle: updatedBooking.exam.title,
+                oldScheduledAt: booking.scheduledAt,
+                newScheduledAt: updatedBooking.scheduledAt,
+                notes
+              }
+            });
+            logger.info(`🔔 Sent exam reschedule notification to user ${booking.userId}`);
+          }
+        }
+      } catch (notificationError) {
+        logger.warn('Failed to send status update notification:', notificationError);
+        // Continue without notification - this is not critical
+      }
 
       return { success: true, booking: updatedBooking };
     } catch (error) {

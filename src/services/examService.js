@@ -50,10 +50,25 @@ class ExamService {
 
       // Use the correct field names
       const finalExamCategoryId = examCategoryId || categoryId;
-      const finalTotalMarks = totalMarks || totalQuestions;
       const finalPassingMarks = passingMarks || passingScore;
       const finalScheduledStart = scheduledStart || (startDate ? new Date(startDate) : null);
       const finalScheduledEnd = scheduledEnd || (endDate ? new Date(endDate) : null);
+
+      // Calculate totalQuestions from distribution if not provided
+      let finalTotalQuestions = totalQuestions;
+      if (!finalTotalQuestions) {
+        finalTotalQuestions = essayQuestionsCount + multipleChoiceQuestionsCount + 
+                             shortAnswerQuestionsCount + fillInTheBlankQuestionsCount + 
+                             trueFalseQuestionsCount + matchingQuestionsCount + 
+                             orderingQuestionsCount;
+      }
+
+      // Calculate totalMarks if not provided
+      let finalTotalMarks = totalMarks;
+      if (!finalTotalMarks && finalTotalQuestions) {
+        // Default to 2 marks per question if not specified
+        finalTotalMarks = finalTotalQuestions * 2;
+      }
 
       // Validate exam category exists
       const category = await prisma.examCategory.findUnique({
@@ -62,6 +77,68 @@ class ExamService {
 
       if (!category) {
         return { success: false, message: 'Exam category not found' };
+      }
+
+      // Validate question distribution if specified
+      if (essayQuestionsCount > 0 || multipleChoiceQuestionsCount > 0 || 
+          shortAnswerQuestionsCount > 0 || fillInTheBlankQuestionsCount > 0 || 
+          trueFalseQuestionsCount > 0 || matchingQuestionsCount > 0 || 
+          orderingQuestionsCount > 0) {
+        
+        logger.info('Validating question distribution before exam creation', {
+          examCategoryId: finalExamCategoryId,
+          distribution: {
+            essay: essayQuestionsCount,
+            multipleChoice: multipleChoiceQuestionsCount,
+            shortAnswer: shortAnswerQuestionsCount,
+            fillInTheBlank: fillInTheBlankQuestionsCount,
+            trueFalse: trueFalseQuestionsCount,
+            matching: matchingQuestionsCount,
+            ordering: orderingQuestionsCount
+          }
+        });
+
+        try {
+          const distributionValidation = await questionRandomizationService.validateQuestionDistribution(
+            finalExamCategoryId,
+            {
+              essayQuestionsCount,
+              multipleChoiceQuestionsCount,
+              shortAnswerQuestionsCount,
+              fillInTheBlankQuestionsCount,
+              trueFalseQuestionsCount,
+              matchingQuestionsCount,
+              orderingQuestionsCount
+            }
+          );
+
+          if (!distributionValidation.isValid) {
+            logger.warn('Question distribution validation failed', distributionValidation);
+            
+            // Create warning message
+            const missingTypes = distributionValidation.missingQuestions.map(m => 
+              `${m.type}: need ${m.requested}, have ${m.available}`
+            ).join(', ');
+            
+            return { 
+              success: false, 
+              message: `Insufficient questions for the requested distribution. ${missingTypes}`,
+              details: distributionValidation
+            };
+          }
+
+          if (distributionValidation.warnings.length > 0) {
+            logger.warn('Question distribution warnings', distributionValidation.warnings);
+          }
+
+          logger.info('✅ Question distribution validation passed', distributionValidation);
+        } catch (validationError) {
+          logger.error('Question distribution validation error', validationError);
+          return { 
+            success: false, 
+            message: 'Failed to validate question distribution. Please try again.' 
+          };
+        }
       }
 
       // Create exam with all fields
@@ -88,7 +165,7 @@ class ExamService {
           rules,
           scheduledStart: finalScheduledStart,
           scheduledEnd: finalScheduledEnd,
-          totalQuestions: finalTotalMarks,
+          totalQuestions: finalTotalQuestions,
           // Question type distribution
           essayQuestionsCount,
           multipleChoiceQuestionsCount,
@@ -122,6 +199,32 @@ class ExamService {
           userAgent: 'exam-service'
         }
       });
+
+      // Send notification to all students about the new exam
+      try {
+        if (global.notificationService) {
+          logger.info(`🔔 Attempting to send new exam notification for: ${exam.title}`);
+          logger.info(`🔔 Global notification service available: ${!!global.notificationService}`);
+          logger.info(`🔔 Notification service methods:`, Object.getOwnPropertyNames(Object.getPrototypeOf(global.notificationService)));
+          
+          const notificationResult = await global.notificationService.notifyStudentsNewExam(exam);
+          logger.info(`🔔 New exam notification result:`, notificationResult);
+          
+          if (notificationResult.success) {
+            logger.info(`✅ Successfully notified ${notificationResult.successCount}/${notificationResult.totalStudents} students about new exam`);
+          } else {
+            logger.error(`❌ Failed to notify students about new exam:`, notificationResult.error);
+          }
+        } else {
+          logger.warn('❌ Notification service not available for new exam notification');
+          logger.warn('🔍 Global object keys:', Object.keys(global));
+          logger.warn('🔍 Global notificationService:', global.notificationService);
+        }
+      } catch (notificationError) {
+        // Don't fail exam creation if notification fails
+        logger.error('❌ Failed to send new exam notification', notificationError);
+        logger.error('❌ Notification error stack:', notificationError.stack);
+      }
 
       return { success: true, exam };
     } catch (error) {
@@ -516,7 +619,7 @@ class ExamService {
   }
 
   /**
-   * Start exam attempt
+   * Start exam attempt for a user
    */
   async startExamAttempt(examId, userId) {
     try {
@@ -548,35 +651,49 @@ class ExamService {
         return { success: false, message: 'Maximum attempts reached for this exam' };
       }
 
-      // Get questions for this exam category
-      logger.info('Getting questions for exam category', {
+      // Get questions using the question randomization service with proper distribution
+      logger.info('Getting questions for exam with distribution', {
         examId,
         userId,
-        examCategoryId: exam.examCategoryId
+        examCategoryId: exam.examCategoryId,
+        totalQuestions: exam.totalQuestions,
+        questionDistribution: {
+          essay: exam.essayQuestionsCount,
+          multipleChoice: exam.multipleChoiceQuestionsCount,
+          shortAnswer: exam.shortAnswerQuestionsCount,
+          fillInTheBlank: exam.fillInTheBlankQuestionsCount,
+          trueFalse: exam.trueFalseQuestionsCount,
+          matching: exam.matchingQuestionsCount,
+          ordering: exam.orderingQuestionsCount
+        }
       });
       
-      const questions = await prisma.question.findMany({
-        where: {
-          examCategoryId: exam.examCategoryId,
-          isActive: true,
-          isPublic: true
-        },
-        include: {
-          options: {
-            select: {
-              id: true,
-              text: true,
-              isCorrect: true
-            }
-          },
-          images: true
-        },
-        orderBy: { createdAt: 'desc' }
-      });
-      
-      logger.info('Questions found', {
+      // Use the question randomization service to get questions with proper distribution
+      const questions = await questionRandomizationService.generateRandomQuestions({
         examId,
-        questionsCount: questions.length
+        userId,
+        questionCount: exam.totalQuestions || 10,
+        examCategoryId: exam.examCategoryId,
+        overlapPercentage: exam.questionOverlapPercentage || 10.0,
+        // Pass the exact question type distribution from the exam
+        essayQuestionsCount: exam.essayQuestionsCount || 0,
+        multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
+        shortAnswerQuestionsCount: exam.shortAnswerQuestionsCount || 0,
+        fillInTheBlankQuestionsCount: exam.fillInTheBlankQuestionsCount || 0,
+        trueFalseQuestionsCount: exam.trueFalseQuestionsCount || 0,
+        matchingQuestionsCount: exam.matchingQuestionsCount || 0,
+        orderingQuestionsCount: exam.orderingQuestionsCount || 0
+      });
+      
+      logger.info('Questions generated with distribution', {
+        examId,
+        questionsCount: questions.length,
+        requestedCount: exam.totalQuestions,
+        actualCount: questions.length,
+        questionTypeDistribution: questions.reduce((acc, q) => {
+          acc[q.type] = (acc[q.type] || 0) + 1;
+          return acc;
+        }, {})
       });
 
       // Create exam attempt
@@ -588,21 +705,49 @@ class ExamService {
         }
       });
 
+      // Send exam started notification
+      try {
+        if (global.notificationService) {
+          await global.notificationService.notifyExamStarted({
+            id: attempt.id,
+            userId,
+            examId,
+            exam: {
+              id: exam.id,
+              title: exam.title,
+              duration: exam.duration
+            }
+          });
+          logger.info(`🔔 Sent exam started notification to user ${userId}`);
+        }
+      } catch (notificationError) {
+        logger.warn('Failed to send exam started notification:', notificationError);
+        // Continue without notification - this is not critical
+      }
+
       return {
         success: true,
         attempt: {
           id: attempt.id,
           duration: exam.duration,
-          totalQuestions: questions.length
+          totalQuestions: exam.totalQuestions
         },
         questions,
         exam: {
           id: exam.id,
           title: exam.title,
           duration: exam.duration,
-          totalQuestions: questions.length,
+          totalQuestions: exam.totalQuestions,
           instructions: exam.instructions,
-          rules: exam.rules
+          rules: exam.rules,
+          // Add question distribution fields
+          multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
+          fillInTheBlankQuestionsCount: exam.fillInTheBlankQuestionsCount || 0,
+          essayQuestionsCount: exam.essayQuestionsCount || 0,
+          shortAnswerQuestionsCount: exam.shortAnswerQuestionsCount || 0,
+          trueFalseQuestionsCount: exam.trueFalseQuestionsCount || 0,
+          matchingQuestionsCount: exam.matchingQuestionsCount || 0,
+          orderingQuestionsCount: exam.orderingQuestionsCount || 0
         }
       };
     } catch (error) {
@@ -614,7 +759,7 @@ class ExamService {
   /**
    * Submit question response
    */
-  async submitQuestionResponse(attemptId, questionId, selectedOptions, timeSpent, userId) {
+  async submitQuestionResponse(attemptId, questionId, selectedOptions, timeSpent, userId, essayAnswer = null) {
     try {
       const attempt = await prisma.examAttempt.findUnique({
         where: { id: attemptId },
@@ -644,7 +789,16 @@ class ExamService {
       }
 
       // Check if the answer is correct
-      const isCorrect = this.checkAnswer(question, selectedOptions);
+      let isCorrect = false;
+      
+      if (question.type === 'FILL_IN_THE_BLANK') {
+        // For fill-in-the-blank questions, we need to check text matching
+        // The user's answer is stored in essayAnswer field
+        isCorrect = this.checkFillInTheBlankAnswer(question, essayAnswer);
+      } else {
+        // For other question types, use the standard checkAnswer method
+        isCorrect = this.checkAnswer(question, selectedOptions);
+      }
 
       // Create or update question response
       const response = await prisma.questionResponse.upsert({
@@ -658,6 +812,7 @@ class ExamService {
           selectedOptions,
           timeSpent,
           isCorrect,
+          essayAnswer: essayAnswer || undefined,
           answeredAt: new Date()
         },
         create: {
@@ -667,6 +822,7 @@ class ExamService {
           selectedOptions,
           timeSpent,
           isCorrect,
+          essayAnswer: essayAnswer || undefined,
           answeredAt: new Date()
         }
       });
@@ -695,6 +851,19 @@ class ExamService {
         }
       });
 
+      logger.info('Attempt loaded for completion', { 
+        attemptId, 
+        hasExam: !!attempt?.exam, 
+        examTitle: attempt?.exam?.title,
+        responsesCount: attempt?.responses?.length || 0,
+        responses: attempt?.responses?.map(r => ({
+          id: r.id,
+          questionId: r.questionId,
+          isCorrect: r.isCorrect,
+          selectedOptions: r.selectedOptions
+        }))
+      });
+
       if (!attempt) {
         logger.error('Attempt not found', { attemptId });
         return { success: false, message: 'Attempt not found' };
@@ -717,7 +886,12 @@ class ExamService {
 
       logger.info('Calculating score', { 
         totalQuestions, 
-        responsesCount: attempt.responses.length 
+        responsesCount: attempt.responses.length,
+        responses: attempt.responses.map(r => ({
+          questionId: r.questionId,
+          isCorrect: r.isCorrect,
+          selectedOptions: r.selectedOptions
+        }))
       });
 
       for (const response of attempt.responses) {
@@ -769,24 +943,35 @@ class ExamService {
 
       // Create certificate if passed
       let certificate = null;
+      logger.info('Certificate generation check', { 
+        attemptId, 
+        isPassed, 
+        percentage, 
+        passingMarks: attempt.exam.passingMarks,
+        examTitle: attempt.exam.title 
+      });
+      
+      // Certificate will be generated later when user requests it
       if (isPassed) {
-        logger.info('Creating certificate for passed attempt', { attemptId });
-        certificate = await prisma.certificate.create({
-          data: {
-            userId,
-            examId: attempt.examId,
-            attemptId,
-            certificateNumber: `CERT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            issuedAt: new Date(),
-            expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year
-          }
+        logger.info('Exam passed - certificate can be requested later', { 
+          attemptId, 
+          percentage, 
+          passingMarks: attempt.exam.passingMarks 
         });
-        logger.info('Certificate created', { certificateId: certificate.id });
+      } else {
+        logger.info('No certificate created - attempt did not pass', { 
+          attemptId, 
+          percentage, 
+          passingMarks: attempt.exam.passingMarks 
+        });
       }
 
       const result = {
         success: true,
-        attempt: updatedAttempt,
+        attempt: {
+          ...updatedAttempt,
+          exam: attempt.exam // Include exam data for notifications and WebSocket
+        },
         certificate,
         results: {
           totalQuestions,
@@ -800,7 +985,8 @@ class ExamService {
       // Send exam completion notification
       if (global.notificationService && result.success) {
         try {
-          await global.notificationService.notifyExamCompleted(result.attempt, result.results);
+          // Pass the original attempt object that includes exam data for notification
+          await global.notificationService.notifyExamCompleted(attempt, result.results);
           logger.info('Exam completion notification sent', { 
             attemptId, 
             userId, 
@@ -815,7 +1001,12 @@ class ExamService {
         }
       }
 
-      logger.info('completeExamAttempt completed successfully', { attemptId });
+      logger.info('completeExamAttempt completed successfully', { 
+        attemptId, 
+        certificateCreated: !!certificate,
+        certificateId: certificate?.id,
+        certificateNumber: certificate?.certificateNumber
+      });
       return result;
     } catch (error) {
       logger.error('Complete exam attempt failed', { 
@@ -844,19 +1035,80 @@ class ExamService {
         return false;
       }
 
-      // Get correct option IDs from the question options
-      const correctOptionIds = question.options
-        .filter(option => option && option.isCorrect)
-        .map(option => option.id)
-        .sort();
-      
-      // Sort the selected options for comparison
-      const sortedSelectedOptions = selectedOptions.sort();
-      
-      // Compare the arrays
-      return JSON.stringify(sortedSelectedOptions) === JSON.stringify(correctOptionIds);
+      // Handle different question types
+      if (question.type === 'FILL_IN_THE_BLANK') {
+        // For fill-in-the-blank, selectedOptions should be option IDs that the user selected
+        // We need to check if the selected options match the correct options
+        const correctOptionIds = question.options
+          .filter(option => option && option.isCorrect)
+          .map(option => option.id)
+          .sort();
+        
+        const sortedSelectedOptions = selectedOptions.sort();
+        
+        // Compare the arrays
+        return JSON.stringify(sortedSelectedOptions) === JSON.stringify(correctOptionIds);
+      } else {
+        // For other question types (multiple choice, single choice, etc.)
+        // Get correct option IDs from the question options
+        const correctOptionIds = question.options
+          .filter(option => option && option.isCorrect)
+          .map(option => option.id)
+          .sort();
+        
+        // Sort the selected options for comparison
+        const sortedSelectedOptions = selectedOptions.sort();
+        
+        // Compare the arrays
+        return JSON.stringify(sortedSelectedOptions) === JSON.stringify(correctOptionIds);
+      }
     } catch (error) {
       logger.error('Error checking answer:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check fill-in-the-blank answer
+   */
+  checkFillInTheBlankAnswer(question, essayAnswer) {
+    try {
+      // Validate inputs
+      if (!question || !question.options || !Array.isArray(question.options)) {
+        logger.error('Invalid question object in checkFillInTheBlankAnswer', { question });
+        return false;
+      }
+
+      if (!essayAnswer || typeof essayAnswer !== 'string') {
+        logger.error('Invalid essayAnswer in checkFillInTheBlankAnswer', { essayAnswer });
+        return false;
+      }
+
+      // Parse the essay answer format: "Blank 1: answer1 | Blank 2: answer2 | ..."
+      const blankAnswers = essayAnswer.split(' | ').map(part => {
+        const match = part.match(/^Blank \d+: (.+)$/);
+        return match ? match[1].trim() : '';
+      }).filter(answer => answer.length > 0);
+
+      // Check if we have the right number of answers
+      const correctOptions = question.options.filter(option => option && option.isCorrect);
+      if (blankAnswers.length !== correctOptions.length) {
+        return false;
+      }
+
+      // Check each blank answer against the correct option
+      let correctBlanks = 0;
+      correctOptions.forEach((correctOption, index) => {
+        const userAnswer = blankAnswers[index];
+        if (userAnswer && userAnswer.toLowerCase() === correctOption.text.toLowerCase()) {
+          correctBlanks++;
+        }
+      });
+
+      // Consider the answer correct if all blanks are filled correctly
+      return correctBlanks === correctOptions.length;
+    } catch (error) {
+      logger.error('Error checking fill-in-the-blank answer:', error);
       return false;
     }
   }
@@ -1075,6 +1327,7 @@ class ExamService {
           examId: attempt.examId,
           attemptId,
           certificateNumber: `CERT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          status: "EARNED",
           issuedAt: new Date(),
           expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year
         },
@@ -1423,6 +1676,52 @@ class ExamService {
     } catch (error) {
       logger.error('Get exam analytics failed', error);
       return { success: false, message: 'Failed to get exam analytics' };
+    }
+  }
+
+  /**
+   * Get exam attempt by ID
+   */
+  async getExamAttempt(attemptId, userId) {
+    try {
+      const attempt = await prisma.examAttempt.findFirst({
+        where: {
+          id: attemptId,
+          userId
+        },
+        include: {
+          exam: {
+            select: {
+              id: true,
+              title: true,
+              totalMarks: true,
+              passingMarks: true,
+              duration: true
+            }
+          },
+          responses: {
+            include: {
+              question: {
+                select: {
+                  id: true,
+                  text: true,
+                  type: true,
+                  marks: true
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (!attempt) {
+        return null;
+      }
+
+      return attempt;
+    } catch (error) {
+      logger.error('Get exam attempt failed', error);
+      throw error;
     }
   }
 }

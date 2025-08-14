@@ -3,185 +3,79 @@ const logger = require('../config/logger');
 
 class EmailService {
   constructor() {
-    this.transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: process.env.SMTP_PORT,
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-      }
-    });
+    // Disable email service - no SMTP configuration needed
+    this.isEnabled = false;
+    logger.info('Email service disabled - notifications will use WebSocket and database only');
   }
 
   /**
-   * Send verification email
+   * Send verification email (disabled)
    */
   async sendVerificationEmail(email, token) {
-    try {
-      const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
-
-      const mailOptions = {
-        from: process.env.FROM_EMAIL,
-        to: email,
-        subject: 'Verify Your Email Address',
-        html: this.getVerificationEmailTemplate(verificationUrl)
-      };
-
-      await this.transporter.sendMail(mailOptions);
-      logger.info('Verification email sent', { email });
-    } catch (error) {
-      logger.error('Send verification email failed', error);
-      throw error;
-    }
+    logger.info('Email service disabled - verification email not sent', { email });
+    return { success: true, message: 'Email service disabled' };
   }
 
   /**
-   * Send password reset email
+   * Send password reset email (disabled)
    */
   async sendPasswordResetEmail(email, token) {
-    try {
-      const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
-
-      const mailOptions = {
-        from: process.env.FROM_EMAIL,
-        to: email,
-        subject: 'Reset Your Password',
-        html: this.getPasswordResetEmailTemplate(resetUrl)
-      };
-
-      await this.transporter.sendMail(mailOptions);
-      logger.info('Password reset email sent', { email });
-    } catch (error) {
-      logger.error('Send password reset email failed', error);
-      throw error;
-    }
+    logger.info('Email service disabled - password reset email not sent', { email });
+    return { success: true, message: 'Email service disabled' };
   }
 
   /**
-   * Send welcome email
+   * Send welcome email (disabled)
    */
   async sendWelcomeEmail(email, userData) {
-    try {
-      const mailOptions = {
-        from: process.env.FROM_EMAIL,
-        to: email,
-        subject: 'Welcome to Our Mock Test Platform',
-        html: this.getWelcomeEmailTemplate(userData)
-      };
-
-      await this.transporter.sendMail(mailOptions);
-      logger.info('Welcome email sent', { email });
-    } catch (error) {
-      logger.error('Send welcome email failed', error);
-      throw error;
-    }
+    logger.info('Email service disabled - welcome email not sent', { email });
+    return { success: true, message: 'Email service disabled' };
   }
 
   /**
-   * Send exam booking confirmation
+   * Send exam booking confirmation (disabled)
    */
   async sendExamBookingConfirmation(email, bookingData) {
-    try {
-      const mailOptions = {
-        from: process.env.FROM_EMAIL,
-        to: email,
-        subject: 'Exam Booking Confirmation',
-        html: this.getExamBookingEmailTemplate(bookingData)
-      };
-
-      await this.transporter.sendMail(mailOptions);
-      logger.info('Exam booking confirmation email sent', { email });
-    } catch (error) {
-      logger.error('Send exam booking confirmation failed', error);
-      throw error;
-    }
+    logger.info('Email service disabled - exam booking email not sent', { email });
+    return { success: true, message: 'Email service disabled' };
   }
 
   /**
-   * Send exam results email
+   * Send exam results email (disabled)
    */
   async sendExamResultsEmail(email, resultsData) {
-    try {
-      const mailOptions = {
-        from: process.env.FROM_EMAIL,
-        to: email,
-        subject: 'Your Exam Results',
-        html: this.getExamResultsEmailTemplate(resultsData)
-      };
-
-      await this.transporter.sendMail(mailOptions);
-      logger.info('Exam results email sent', { email });
-    } catch (error) {
-      logger.error('Send exam results email failed', error);
-      throw error;
-    }
+    logger.info('Email service disabled - exam results email not sent', { email });
+    return { success: true, message: 'Email service disabled' };
   }
 
   /**
-   * Send certificate email
+   * Send certificate email (disabled)
    */
   async sendCertificateEmail(email, certificateData) {
-    try {
-      const mailOptions = {
-        from: process.env.FROM_EMAIL,
-        to: email,
-        subject: 'Your Certificate is Ready',
-        html: this.getCertificateEmailTemplate(certificateData)
-      };
-
-      await this.transporter.sendMail(mailOptions);
-      logger.info('Certificate email sent', { email });
-    } catch (error) {
-      logger.error('Send certificate email failed', error);
-      throw error;
-    }
+    logger.info('Email service disabled - certificate email not sent', { email });
+    return { success: true, message: 'Email service disabled' };
   }
 
   /**
-   * Send account status email
+   * Send account status email (disabled)
    */
   async sendAccountStatusEmail(email, statusData) {
-    try {
-      const mailOptions = {
-        from: process.env.FROM_EMAIL,
-        to: email,
-        subject: `Account ${statusData.isActive ? 'Activated' : 'Deactivated'}`,
-        html: this.getAccountStatusEmailTemplate(statusData)
-      };
-
-      await this.transporter.sendMail(mailOptions);
-      logger.info('Account status email sent', { email });
-    } catch (error) {
-      logger.error('Send account status email failed', error);
-      throw error;
-    }
+    logger.info('Email service disabled - account status email not sent', { email });
+    return { success: true, message: 'Email service disabled' };
   }
 
   /**
-   * Send notification email
+   * Send notification email (disabled)
    */
   async sendNotificationEmail(email, notificationData) {
-    try {
-      const mailOptions = {
-        from: process.env.FROM_EMAIL,
-        to: email,
-        subject: notificationData.subject,
-        html: this.getNotificationEmailTemplate(notificationData)
-      };
-
-      await this.transporter.sendMail(mailOptions);
-      logger.info('Notification email sent', { email });
-    } catch (error) {
-      logger.error('Send notification email failed', error);
-      throw error;
-    }
+    logger.info('Email service disabled - notification email not sent', { email });
+    return { success: true, message: 'Email service disabled' };
   }
 
   // Email templates
 
   /**
-   * Get verification email template
+   * Get verification email template (disabled)
    */
   getVerificationEmailTemplate(verificationUrl) {
     return `
@@ -224,7 +118,7 @@ class EmailService {
   }
 
   /**
-   * Get password reset email template
+   * Get password reset email template (disabled)
    */
   getPasswordResetEmailTemplate(resetUrl) {
     return `
@@ -268,7 +162,7 @@ class EmailService {
   }
 
   /**
-   * Get welcome email template
+   * Get welcome email template (disabled)
    */
   getWelcomeEmailTemplate(userData) {
     return `
@@ -316,7 +210,7 @@ class EmailService {
   }
 
   /**
-   * Get exam booking email template
+   * Get exam booking email template (disabled)
    */
   getExamBookingEmailTemplate(bookingData) {
     return `
@@ -366,7 +260,7 @@ class EmailService {
   }
 
   /**
-   * Get exam results email template
+   * Get exam results email template (disabled)
    */
   getExamResultsEmailTemplate(resultsData) {
     const isPassed = resultsData.isPassed;
@@ -419,7 +313,7 @@ class EmailService {
   }
 
   /**
-   * Get certificate email template
+   * Get certificate email template (disabled)
    */
   getCertificateEmailTemplate(certificateData) {
     return `
@@ -469,7 +363,7 @@ class EmailService {
   }
 
   /**
-   * Get account status email template
+   * Get account status email template (disabled)
    */
   getAccountStatusEmailTemplate(statusData) {
     const isActive = statusData.isActive;
@@ -520,7 +414,7 @@ class EmailService {
   }
 
   /**
-   * Get notification email template
+   * Get notification email template (disabled)
    */
   getNotificationEmailTemplate(notificationData) {
     return `

@@ -11,7 +11,7 @@ class AdvancedNotificationService {
     this.isEnabled = process.env.NOTIFICATIONS_ENABLED !== 'false';
     this.channels = {
       websocket: true,
-      email: true,
+      email: false, // Disabled - no more email notifications
       push: process.env.PUSH_NOTIFICATIONS_ENABLED === 'true',
       sms: process.env.SMS_NOTIFICATIONS_ENABLED === 'true',
       database: true
@@ -44,7 +44,7 @@ class AdvancedNotificationService {
         message,
         data = {},
         priority = 'normal', // low, normal, high, urgent
-        channels = ['websocket', 'database'], // which channels to use
+        channels = ['websocket', 'database'], // which channels to use (email removed)
         templateData = {},
         scheduleAt = null,
         expiresAt = null
@@ -302,7 +302,7 @@ class AdvancedNotificationService {
       title: '🎉 Welcome to Our Platform!',
       message: `Welcome ${userData.firstName}! Your account has been created successfully.`,
       priority: 'normal',
-      channels: ['websocket', 'database', 'email'],
+      channels: ['websocket', 'database'],
       templateData: userData
     });
   }
@@ -336,39 +336,56 @@ class AdvancedNotificationService {
       title,
       message,
       priority: 'high',
-      channels: ['websocket', 'database', 'email'],
+      channels: ['websocket', 'database'],
       templateData: statusData
     });
   }
 
   /**
-   * Exam Booking Confirmation
+   * Exam Booking Confirmation - PERSONAL NOTIFICATION
    */
   async notifyBookingConfirmed(bookingData) {
-    return await this.sendNotification({
-      userId: bookingData.userId,
+    // Format the scheduled date for better display
+    const scheduledDate = bookingData.scheduledAt ? new Date(bookingData.scheduledAt).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }) : 'TBD';
+
+    return await this.sendPersonalNotification(bookingData.userId, {
       type: 'BOOKING_CONFIRMED',
       title: '📅 Exam Booking Confirmed',
-      message: `Your booking for "${bookingData.exam.title}" has been confirmed.`,
+      message: `Your booking for "${bookingData.exam.title}" has been confirmed${bookingData.scheduledAt ? ` and is scheduled for ${scheduledDate}` : ''}.`,
       priority: 'normal',
-      channels: ['websocket', 'database', 'email'],
-      data: { bookingId: bookingData.id, examId: bookingData.examId },
-      templateData: bookingData
+      data: { 
+        bookingId: bookingData.id, 
+        examId: bookingData.examId,
+        examTitle: bookingData.exam.title,
+        scheduledAt: bookingData.scheduledAt,
+        totalAmount: bookingData.totalAmount,
+        currency: bookingData.currency
+      }
     });
   }
 
   /**
-   * Booking Cancellation Notification
+   * Booking Cancellation Notification - PERSONAL NOTIFICATION
    */
   async notifyBookingCancelled(bookingData, reason) {
-    return await this.sendNotification({
-      userId: bookingData.userId,
+    return await this.sendPersonalNotification(bookingData.userId, {
       type: 'BOOKING_CANCELLED',
       title: '❌ Exam Booking Cancelled',
       message: `Your booking for "${bookingData.exam.title}" has been cancelled. ${reason ? `Reason: ${reason}` : ''}`,
       priority: 'normal',
-      channels: ['websocket', 'database', 'email'],
-      data: { bookingId: bookingData.id, examId: bookingData.examId, reason }
+      data: { 
+        bookingId: bookingData.id, 
+        examId: bookingData.examId, 
+        reason,
+        examTitle: bookingData.exam.title
+      }
     });
   }
 
@@ -382,7 +399,7 @@ class AdvancedNotificationService {
       title: '💳 Payment Successful',
       message: `Payment of ${paymentData.currency} ${paymentData.amount} has been processed successfully.`,
       priority: 'normal',
-      channels: ['websocket', 'database', 'email'],
+      channels: ['websocket', 'database'],
       data: { paymentId: paymentData.id, amount: paymentData.amount }
     });
   }
@@ -397,7 +414,7 @@ class AdvancedNotificationService {
       title: '⚠️ Payment Failed',
       message: `Payment of ${paymentData.currency} ${paymentData.amount} could not be processed. Please try again.`,
       priority: 'high',
-      channels: ['websocket', 'database', 'email'],
+      channels: ['websocket', 'database'],
       data: { paymentId: paymentData.id, amount: paymentData.amount }
     });
   }
@@ -431,7 +448,7 @@ class AdvancedNotificationService {
       title,
       message,
       priority: 'high',
-      channels: ['websocket', 'database', 'email'],
+      channels: ['websocket', 'database'],
       data: { 
         attemptId: attemptData.id, 
         examId: attemptData.examId,
@@ -453,32 +470,13 @@ class AdvancedNotificationService {
       title: '🏆 Certificate Ready',
       message: `Your certificate for "${certificateData.examTitle}" is now ready for download.`,
       priority: 'high',
-      channels: ['websocket', 'database', 'email'],
+      channels: ['websocket', 'database'],
       data: { certificateId: certificateData.id },
       templateData: certificateData
     });
   }
 
-  /**
-   * Exam Reminder Notification (scheduled)
-   */
-  async notifyExamReminder(bookingData, reminderType = '24h') {
-    const timeMap = {
-      '24h': '24 hours',
-      '1h': '1 hour',
-      '15m': '15 minutes'
-    };
-    
-    return await this.sendNotification({
-      userId: bookingData.userId,
-      type: 'EXAM_REMINDER',
-      title: '⏰ Exam Reminder',
-      message: `Your exam "${bookingData.exam.title}" is scheduled in ${timeMap[reminderType]}.`,
-      priority: 'normal',
-      channels: ['websocket', 'database', 'email'],
-      data: { bookingId: bookingData.id, reminderType }
-    });
-  }
+
 
   /**
    * System Alert Notification (for admins)
@@ -497,7 +495,7 @@ class AdvancedNotificationService {
         title: '⚠️ System Alert',
         message: alertData.message,
         priority: 'urgent',
-        channels: ['websocket', 'database', 'email'],
+        channels: ['websocket', 'database'],
         data: alertData
       })
     );
@@ -528,6 +526,244 @@ class AdvancedNotificationService {
 
     return await Promise.all(notifications);
   }
+
+  /**
+   * New Exam Created Alert (for all students) - GENERAL NOTIFICATION
+   */
+  async notifyStudentsNewExam(examData) {
+    try {
+      // Get all active students
+      const students = await prisma.user.findMany({
+        where: { 
+          role: 'STUDENT', 
+          isActive: true 
+        },
+        select: { id: true }
+      });
+
+      if (students.length === 0) {
+        logger.info('No active students found for exam notification');
+        return { success: true, message: 'No students to notify' };
+      }
+
+      logger.info(`🔔 Notifying ${students.length} students about new exam: ${examData.title}`);
+
+      // Format the start date for display
+      const startDate = examData.scheduledStart ? new Date(examData.scheduledStart).toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      }) : 'TBD';
+
+      // Create notification data
+      const notificationData = {
+        type: 'SYSTEM_ANNOUNCEMENT', // Changed from 'NEW_EXAM_AVAILABLE' to valid enum value
+        title: '📚 New Exam Available',
+        message: `New exam "${examData.title}" will be starting on ${startDate}. You can attend this exam!`,
+        priority: 'normal',
+        timestamp: new Date().toISOString(),
+        data: { 
+          examId: examData.id,
+          examTitle: examData.title,
+          examCategory: examData.examCategory?.name || 'General',
+          scheduledStart: examData.scheduledStart,
+          scheduledEnd: examData.scheduledEnd,
+          price: examData.price,
+          currency: examData.currency
+        }
+      };
+
+      // Send individual notifications to each student
+      const notifications = students.map(student => 
+        this.sendNotification({
+          userId: student.id,
+          ...notificationData,
+          channels: ['websocket', 'database']
+        })
+      );
+
+      // Send notifications to individual user rooms instead of broadcasting to student-room
+      if (this.io) {
+        logger.info(`🔔 Sending individual notifications to ${students.length} students`);
+        for (const student of students) {
+          this.io.to(`user-${student.id}`).emit('new-exam-available', {
+            ...notificationData,
+            targetUserId: student.id
+          });
+        }
+        logger.info('🔔 Sent individual exam notifications to all students');
+      } else {
+        logger.warn('🔔 WebSocket not available for individual notifications');
+      }
+
+      const results = await Promise.all(notifications);
+      const successCount = results.filter(r => r.success).length;
+      
+      logger.info(`✅ Successfully notified ${successCount}/${students.length} students about new exam`);
+      
+      return { 
+        success: true, 
+        message: `Notified ${successCount} students`,
+        totalStudents: students.length,
+        successCount
+      };
+    } catch (error) {
+      logger.error('Failed to notify students about new exam', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Exam Rescheduled Notification
+   */
+  async notifyExamRescheduled(bookingData, oldScheduledAt, newScheduledAt, reason) {
+    const formatDate = (date) => {
+      if (!date) return 'TBD';
+      return new Date(date).toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    };
+
+    return await this.sendPersonalNotification(bookingData.userId, {
+      type: 'EXAM_RESCHEDULED',
+      title: '📅 Exam Rescheduled',
+      message: `Your exam "${bookingData.exam.title}" has been rescheduled from ${formatDate(oldScheduledAt)} to ${formatDate(newScheduledAt)}.${reason ? ` Reason: ${reason}` : ''}`,
+      priority: 'high',
+      data: {
+        bookingId: bookingData.id,
+        examId: bookingData.examId,
+        examTitle: bookingData.exam.title,
+        oldScheduledAt,
+        newScheduledAt,
+        reason
+      }
+    });
+  }
+
+  /**
+   * Send personal notification to a specific student
+   */
+  async sendPersonalNotification(userId, notificationData) {
+    try {
+      logger.info(`🔔 Sending personal notification to user ${userId}:`, notificationData.title);
+      
+      return await this.sendNotification({
+        userId,
+        ...notificationData,
+        channels: ['websocket', 'database', 'push'], // Include push notifications
+        priority: notificationData.priority || 'normal'
+      });
+    } catch (error) {
+      logger.error('Failed to send personal notification', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Enhanced Exam Reminder Notification (personal to specific student)
+   */
+  async notifyExamReminder(bookingData, reminderType = '24h') {
+    const timeMap = {
+      '24h': '24 hours',
+      '1h': '1 hour',
+      '15m': '15 minutes',
+      '5m': '5 minutes'
+    };
+
+    // Determine priority based on reminder type
+    let priority = 'normal';
+    if (reminderType === '5m') {
+      priority = 'high'; // 5-minute reminder is urgent
+    } else if (reminderType === '15m') {
+      priority = 'high';
+    } else if (reminderType === '1h') {
+      priority = 'normal';
+    } else if (reminderType === '24h') {
+      priority = 'low';
+    }
+    
+    return await this.sendPersonalNotification(bookingData.userId, {
+      type: 'EXAM_REMINDER',
+      title: '⏰ Exam Reminder',
+      message: `Your exam "${bookingData.exam.title}" is scheduled in ${timeMap[reminderType]}.`,
+      priority,
+      data: { 
+        bookingId: bookingData.id, 
+        examId: bookingData.exam.id,
+        examTitle: bookingData.exam.title,
+        reminderType,
+        scheduledAt: bookingData.scheduledAt
+      }
+    });
+  }
+
+  /**
+   * Send upcoming exam notifications to students
+   */
+  async notifyUpcomingExams(userId, upcomingExams) {
+    try {
+      if (!upcomingExams || upcomingExams.length === 0) {
+        return { success: true, message: 'No upcoming exams to notify about' };
+      }
+
+      const notifications = [];
+      
+      for (const exam of upcomingExams.slice(0, 3)) { // Notify about next 3 exams
+        const timeUntilExam = new Date(exam.scheduledStart).getTime() - new Date().getTime();
+        const hoursUntilExam = timeUntilExam / (1000 * 60 * 60);
+        
+        let priority = 'normal';
+        let message = '';
+        
+        if (hoursUntilExam <= 1) {
+          priority = 'high';
+          message = `Your exam "${exam.title}" starts in less than 1 hour!`;
+        } else if (hoursUntilExam <= 24) {
+          priority = 'normal';
+          message = `Your exam "${exam.title}" is scheduled for tomorrow.`;
+        } else {
+          priority = 'low';
+          message = `Your exam "${exam.title}" is scheduled for ${new Date(exam.scheduledStart).toLocaleDateString()}.`;
+        }
+
+        const notification = await this.sendPersonalNotification(userId, {
+          type: 'EXAM_REMINDER',
+          title: '📅 Upcoming Exam',
+          message,
+          priority,
+          data: {
+            examId: exam.id,
+            examTitle: exam.title,
+            scheduledStart: exam.scheduledStart,
+            category: exam.examCategory?.name || 'General'
+          }
+        });
+
+        if (notification.success) {
+          notifications.push(notification);
+        }
+      }
+
+      return {
+        success: true,
+        message: `Sent ${notifications.length} upcoming exam notifications`,
+        notifications
+      };
+    } catch (error) {
+      logger.error('Failed to send upcoming exam notifications', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Send exam result notification
+   */
 
   // ============================================================================
   // NOTIFICATION MANAGEMENT METHODS

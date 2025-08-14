@@ -119,25 +119,6 @@ class QuestionRandomizationService {
       });
 
       // Select questions based on type distribution
-      logger.info('Attempting to select questions by type distribution', {
-        essayQuestionsCount,
-        multipleChoiceQuestionsCount,
-        shortAnswerQuestionsCount,
-        fillInTheBlankQuestionsCount,
-        trueFalseQuestionsCount,
-        matchingQuestionsCount,
-        orderingQuestionsCount,
-        availableQuestionsByType: {
-          essay: questionsByType.ESSAY?.length || 0,
-          multipleChoice: questionsByType.MULTIPLE_CHOICE?.length || 0,
-          shortAnswer: questionsByType.SHORT_ANSWER?.length || 0,
-          fillInTheBlank: questionsByType.FILL_IN_THE_BLANK?.length || 0,
-          trueFalse: questionsByType.TRUE_FALSE?.length || 0,
-          matching: questionsByType.MATCHING?.length || 0,
-          ordering: questionsByType.ORDERING?.length || 0
-        }
-      });
-
       let selectedQuestions = await this.selectQuestionsByTypeDistribution(
         questionsByType,
         {
@@ -158,7 +139,16 @@ class QuestionRandomizationService {
         selectedQuestionsByType: selectedQuestions.reduce((acc, q) => {
           acc[q.type] = (acc[q.type] || 0) + 1;
           return acc;
-        }, {})
+        }, {}),
+        requestedDistribution: {
+          essay: essayQuestionsCount,
+          multipleChoice: multipleChoiceQuestionsCount,
+          shortAnswer: shortAnswerQuestionsCount,
+          fillInTheBlank: fillInTheBlankQuestionsCount,
+          trueFalse: trueFalseQuestionsCount,
+          matching: matchingQuestionsCount,
+          ordering: orderingQuestionsCount
+        }
       });
 
       // Check if we have a specific question type distribution
@@ -170,6 +160,41 @@ class QuestionRandomizationService {
                                  matchingQuestionsCount > 0 || 
                                  orderingQuestionsCount > 0;
 
+      if (hasTypeDistribution && selectedQuestions.length > 0) {
+        // Verify we got the expected total count
+        const expectedTotal = essayQuestionsCount + multipleChoiceQuestionsCount + 
+                             shortAnswerQuestionsCount + fillInTheBlankQuestionsCount + 
+                             trueFalseQuestionsCount + matchingQuestionsCount + 
+                             orderingQuestionsCount;
+        
+        if (selectedQuestions.length !== expectedTotal) {
+          logger.warn(`⚠️ Question count mismatch! Expected ${expectedTotal}, got ${selectedQuestions.length}`);
+          
+          // If we got fewer questions than expected, it means some types don't have enough questions
+          // Log which types are missing questions
+          const actualDistribution = selectedQuestions.reduce((acc, q) => {
+            acc[q.type] = (acc[q.type] || 0) + 1;
+            return acc;
+          }, {});
+          
+          logger.warn('📊 Actual vs Expected Distribution:', {
+            essay: { expected: essayQuestionsCount, actual: actualDistribution['ESSAY'] || 0 },
+            multipleChoice: { expected: multipleChoiceQuestionsCount, actual: actualDistribution['MULTIPLE_CHOICE'] || 0 },
+            shortAnswer: { expected: shortAnswerQuestionsCount, actual: actualDistribution['SHORT_ANSWER'] || 0 },
+            fillInTheBlank: { expected: fillInTheBlankQuestionsCount, actual: actualDistribution['FILL_IN_THE_BLANK'] || 0 },
+            trueFalse: { expected: trueFalseQuestionsCount, actual: actualDistribution['TRUE_FALSE'] || 0 },
+            matching: { expected: matchingQuestionsCount, actual: actualDistribution['MATCHING'] || 0 },
+            ordering: { expected: orderingQuestionsCount, actual: actualDistribution['ORDERING'] || 0 }
+          });
+        } else {
+          logger.info(`✅ Perfect! Got exactly ${expectedTotal} questions with correct distribution`);
+        }
+        
+        // Return the questions with proper distribution
+        return selectedQuestions;
+      }
+
+      // If no specific distribution or no questions selected, use original logic
       if (!hasTypeDistribution || selectedQuestions.length === 0) {
         logger.info('No specific question type distribution set or no questions selected, using original logic');
         
@@ -706,6 +731,86 @@ class QuestionRandomizationService {
       });
     } catch (error) {
       logger.error('Failed to log question selection', error);
+    }
+  }
+
+  /**
+   * Validate if there are enough questions available for the requested distribution
+   */
+  async validateQuestionDistribution(examCategoryId, distribution) {
+    try {
+      const availableQuestions = await this.getAvailableQuestions(examCategoryId);
+      const questionsByType = this.groupQuestionsByType(availableQuestions);
+      
+      const validation = {
+        isValid: true,
+        totalAvailable: availableQuestions.length,
+        typeValidation: {},
+        missingQuestions: [],
+        warnings: []
+      };
+
+      // Check each question type
+      const typeChecks = [
+        { key: 'essayQuestionsCount', type: 'ESSAY' },
+        { key: 'multipleChoiceQuestionsCount', type: 'MULTIPLE_CHOICE' },
+        { key: 'shortAnswerQuestionsCount', type: 'SHORT_ANSWER' },
+        { key: 'fillInTheBlankQuestionsCount', type: 'FILL_IN_THE_BLANK' },
+        { key: 'trueFalseQuestionsCount', type: 'TRUE_FALSE' },
+        { key: 'matchingQuestionsCount', type: 'MATCHING' },
+        { key: 'orderingQuestionsCount', type: 'ORDERING' }
+      ];
+
+      for (const { key, type } of typeChecks) {
+        const requested = distribution[key] || 0;
+        const available = questionsByType[type]?.length || 0;
+        
+        validation.typeValidation[type] = {
+          requested,
+          available,
+          sufficient: available >= requested
+        };
+
+        if (requested > 0) {
+          if (available < requested) {
+            validation.isValid = false;
+            validation.missingQuestions.push({
+              type,
+              requested,
+              available,
+              missing: requested - available
+            });
+          } else if (available === requested) {
+            validation.warnings.push({
+              type,
+              message: `Exactly ${requested} questions available for ${type} - no room for randomization`
+            });
+          }
+        }
+      }
+
+      // Calculate total requested vs available
+      const totalRequested = Object.values(distribution).reduce((sum, count) => sum + (count || 0), 0);
+      validation.totalRequested = totalRequested;
+      validation.totalSufficient = availableQuestions.length >= totalRequested;
+
+      if (!validation.totalSufficient) {
+        validation.isValid = false;
+        validation.warnings.push({
+          type: 'TOTAL',
+          message: `Total requested questions (${totalRequested}) exceeds available questions (${availableQuestions.length})`
+        });
+      }
+
+      logger.info('Question distribution validation completed', {
+        examCategoryId,
+        validation
+      });
+
+      return validation;
+    } catch (error) {
+      logger.error('Question distribution validation failed', error);
+      throw error;
     }
   }
 
@@ -1561,20 +1666,40 @@ class QuestionRandomizationService {
       { type: 'ORDERING', count: distribution.orderingQuestionsCount }
     ];
 
+    // First, check if we have enough questions for each type
+    const availableQuestionsByType = {};
+    let totalAvailableQuestions = 0;
+    
     for (const { type, count } of typeOrder) {
       if (count > 0) {
         const availableQuestions = questionsByType[type] || [];
+        availableQuestionsByType[type] = availableQuestions;
+        totalAvailableQuestions += availableQuestions.length;
+        
+        logger.info(`Available questions for ${type}: ${availableQuestions.length}, Required: ${count}`);
+        
+        if (availableQuestions.length < count) {
+          logger.warn(`⚠️ Not enough questions for type ${type}. Need ${count}, have ${availableQuestions.length}. Will use all available.`);
+        }
+      }
+    }
+
+    logger.info('Total available questions across all types:', totalAvailableQuestions);
+
+    // Now select questions for each type, ensuring we get the exact distribution
+    for (const { type, count } of typeOrder) {
+      if (count > 0) {
+        const availableQuestions = availableQuestionsByType[type] || [];
         
         if (availableQuestions.length === 0) {
-          logger.warn(`No questions available for type: ${type}`);
+          logger.warn(`❌ No questions available for type: ${type}`);
           continue;
         }
 
-        if (availableQuestions.length < count) {
-          logger.warn(`Not enough questions for type ${type}. Need ${count}, have ${availableQuestions.length}. Using all available.`);
-        }
-
+        // Calculate how many questions to select for this type
         const questionsToSelect = Math.min(count, availableQuestions.length);
+        
+        logger.info(`🎯 Selecting ${questionsToSelect} questions of type ${type} (requested: ${count}, available: ${availableQuestions.length})`);
         
         // Use weighted random selection for this question type
         const typeQuestions = await this.weightedRandomSelection(
@@ -1586,9 +1711,34 @@ class QuestionRandomizationService {
         
         selectedQuestions.push(...typeQuestions);
         
-        logger.info(`Selected ${typeQuestions.length} questions of type ${type}`);
+        logger.info(`✅ Selected ${typeQuestions.length} questions of type ${type}`);
+        
+        // Log the actual distribution so far
+        const currentDistribution = selectedQuestions.reduce((acc, q) => {
+          acc[q.type] = (acc[q.type] || 0) + 1;
+          return acc;
+        }, {});
+        
+        logger.info('📊 Current question distribution:', currentDistribution);
       }
     }
+
+    // Verify we got the expected distribution
+    const finalDistribution = selectedQuestions.reduce((acc, q) => {
+      acc[q.type] = (acc[q.type] || 0) + 1;
+      return acc;
+    }, {});
+
+    logger.info('🎯 Final question distribution achieved:', finalDistribution);
+    logger.info('📊 Distribution verification:', {
+      essay: { requested: distribution.essayQuestionsCount, actual: finalDistribution['ESSAY'] || 0 },
+      multipleChoice: { requested: distribution.multipleChoiceQuestionsCount, actual: finalDistribution['MULTIPLE_CHOICE'] || 0 },
+      shortAnswer: { requested: distribution.shortAnswerQuestionsCount, actual: finalDistribution['SHORT_ANSWER'] || 0 },
+      fillInTheBlank: { requested: distribution.fillInTheBlankQuestionsCount, actual: finalDistribution['FILL_IN_THE_BLANK'] || 0 },
+      trueFalse: { requested: distribution.trueFalseQuestionsCount, actual: finalDistribution['TRUE_FALSE'] || 0 },
+      matching: { requested: distribution.matchingQuestionsCount, actual: finalDistribution['MATCHING'] || 0 },
+      ordering: { requested: distribution.orderingQuestionsCount, actual: finalDistribution['ORDERING'] || 0 }
+    });
 
     return selectedQuestions;
   }

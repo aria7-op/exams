@@ -792,6 +792,13 @@ class ExamBookingController {
 
       // Send notification
       try {
+        // Send real-time notification via advanced notification service
+        if (global.notificationService) {
+          await global.notificationService.notifyBookingConfirmed(booking);
+          logger.info(`🔔 Sent real-time booking confirmation notification to user ${userId}`);
+        }
+        
+        // Also send email notification as fallback
         await notificationService.sendBookingConfirmation(booking.user.email, {
           bookingId: booking.id,
           examTitle: booking.exam.title,

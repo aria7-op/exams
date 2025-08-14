@@ -75,10 +75,10 @@ app.use(cors({
 // Rate limiting
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000, // limit each IP to 1000 requests per windowMs (increased for development)
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100000000000, // limit each IP to 1000 requests per windowMs (increased for development)
   message: {
     error: 'Too many requests from this IP, please try again later.',
-    retryAfter: Math.ceil((parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000) / 1000),
+    retryAfter: Math.ceil((parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000) / 1000000000000),
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -87,8 +87,8 @@ const limiter = rateLimit({
 // Slow down requests
 const speedLimiter = slowDown({
   windowMs: parseInt(process.env.SLOW_DOWN_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  delayAfter: parseInt(process.env.SLOW_DOWN_DELAY_AFTER) || 500, // allow 500 requests per 15 minutes, then... (increased for development)
-  delayMs: () => parseInt(process.env.SLOW_DOWN_DELAY_MS) || 500, // begin adding 500ms of delay per request above 500
+  delayAfter: parseInt(process.env.SLOW_DOWN_DELAY_AFTER) || 50000000000, // allow 500 requests per 15 minutes, then... (increased for development)
+  delayMs: () => parseInt(process.env.SLOW_DOWN_DELAY_MS) || 500000000000, // begin adding 500ms of delay per request above 500
 });
 
 app.use(limiter);
@@ -141,7 +141,26 @@ io.on('connection', (socket) => {
   // Join user room for personal updates
   socket.on('join-user', (data) => {
     socket.join(`user-${data.userId}`);
-    logger.info(`👤 User joined: ${data.userId}`);
+    logger.info(`👤 User joined personal room: user-${data.userId}`);
+    
+    // Debug: Check room membership
+    const rooms = Array.from(socket.rooms);
+    logger.info(`👤 User ${data.userId} is now in rooms:`, rooms);
+    
+    // Debug: Check how many users are in this specific room
+    const userRoom = io.sockets.adapter.rooms.get(`user-${data.userId}`);
+    const userCount = userRoom ? userRoom.size : 0;
+    logger.info(`👥 Total users in user-${data.userId}: ${userCount}`);
+    
+    // Send a welcome notification to test the connection
+    socket.emit('notification', {
+      id: 'welcome-' + Date.now(),
+      type: 'SYSTEM_ANNOUNCEMENT',
+      title: '🔌 Connected',
+      message: 'You are now connected to the notification system',
+      priority: 'low',
+      timestamp: new Date().toISOString()
+    });
   });
 
   // Handle exam attempts
@@ -179,6 +198,17 @@ io.on('connection', (socket) => {
     socket.to(`user-${data.userId}`).emit('notification-received', data);
   });
 
+  // Test notification handler
+  socket.on('test-notification', (data) => {
+    logger.info(`🧪 Test notification received from socket ${socket.id}:`, data);
+    // Send back a test response
+    socket.emit('test-notification-response', {
+      message: 'Test response received',
+      timestamp: new Date().toISOString(),
+      socketId: socket.id
+    });
+  });
+
   socket.on('disconnect', () => {
     logger.info(`🔌 WebSocket disconnected: ${socket.id}`);
   });
@@ -194,6 +224,72 @@ notificationService.setSocketIO(io);
 global.io = io;
 global.notificationService = notificationService;
 global.notificationScheduler = notificationScheduler;
+
+// Debug: Log notification service initialization
+logger.info('🔔 Notification service initialized:', {
+  hasIO: !!global.io,
+  hasNotificationService: !!global.notificationService,
+  hasNotificationScheduler: !!global.notificationScheduler
+});
+
+// Test endpoint for notifications (remove in production)
+app.get('/api/v1/test/notification', (req, res) => {
+  try {
+    if (global.notificationService && global.io) {
+      // Get all connected student users and send individual notifications
+      const connectedSockets = Array.from(global.io.sockets.sockets.values());
+      const studentSockets = connectedSockets.filter(socket => 
+        socket.rooms.has('user-') && !socket.rooms.has('admin-room')
+      );
+      
+      if (studentSockets.length > 0) {
+        const testNotification = {
+          type: 'NEW_EXAM_AVAILABLE',
+          title: '🧪 Test Notification',
+          message: 'This is a test notification to verify WebSocket functionality.',
+          priority: 'normal',
+          timestamp: new Date().toISOString(),
+          data: { 
+            examId: 'test-123',
+            examTitle: 'Test Exam',
+            examCategory: 'Testing',
+            scheduledStart: new Date().toISOString()
+          }
+        };
+
+        // Send to each student individually
+        studentSockets.forEach(socket => {
+          const userId = Array.from(socket.rooms).find(room => room.startsWith('user-'))?.replace('user-', '');
+          if (userId) {
+            global.io.to(`user-${userId}`).emit('new-exam-available', testNotification);
+          }
+        });
+        
+        res.json({ 
+          success: true, 
+          message: `Test notification sent to ${studentSockets.length} connected students`,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        res.json({ 
+          success: true, 
+          message: 'No connected students found',
+          timestamp: new Date().toISOString()
+        });
+      }
+    } else {
+      res.status(500).json({ 
+        success: false, 
+        error: 'Notification service not available' 
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
 
 // API routes
 app.use('/api/v1/auth', authRoutes);
