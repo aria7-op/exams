@@ -209,11 +209,38 @@ app.get('/health', async (req, res) => {
 // WebSocket event handlers
 io.on('connection', (socket) => {
   logger.info(`🔌 WebSocket connected: ${socket.id}`);
+  console.log('🔌 New WebSocket connection:', socket.id);
+  console.log('🔌 Socket headers:', socket.handshake.headers);
+  console.log('🔌 Socket auth:', socket.handshake.auth);
 
   // Join admin room for real-time updates
   socket.on('join-admin', (data) => {
+    console.log('🔐 Admin join request:', data);
+    console.log('🔐 Socket ID:', socket.id);
+    console.log('🔐 User ID:', data.userId);
+    console.log('🔐 User Role:', data.userRole);
+    
     socket.join('admin-room');
     logger.info(`👤 Admin joined: ${data.userId}`);
+    
+    // Debug: Check room membership
+    const rooms = Array.from(socket.rooms);
+    console.log('🔐 Admin rooms after join:', rooms);
+    
+    // Debug: Check how many users are in admin room
+    const adminRoom = io.sockets.adapter.rooms.get('admin-room');
+    const adminCount = adminRoom ? adminRoom.size : 0;
+    console.log('👥 Total users in admin-room:', adminCount);
+    
+    // Send a welcome notification to test the connection
+    socket.emit('notification', {
+      id: 'admin-welcome-' + Date.now(),
+      type: 'ADMIN_ANNOUNCEMENT',
+      title: '🔌 Admin Connected',
+      message: 'You are now connected to the admin notification system',
+      priority: 'high',
+      timestamp: new Date().toISOString()
+    });
   });
 
   // Join user room for personal updates
@@ -367,6 +394,23 @@ app.get('/api/v1/test/notification', (req, res) => {
       error: error.message 
     });
   }
+});
+
+// WebSocket test endpoint
+app.get('/websocket-test', (req, res) => {
+  const adminRoom = io.sockets.adapter.rooms.get('admin-room');
+  const userRooms = Array.from(io.sockets.adapter.rooms.keys()).filter(room => room.startsWith('user-'));
+  
+  res.status(200).json({
+    message: 'WebSocket status',
+    timestamp: new Date().toISOString(),
+    adminRoom: {
+      exists: !!adminRoom,
+      userCount: adminRoom ? adminRoom.size : 0
+    },
+    userRooms: userRooms.length,
+    totalConnections: io.engine.clientsCount
+  });
 });
 
 // API routes
