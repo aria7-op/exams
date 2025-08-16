@@ -60,7 +60,7 @@ class ExamBookingService {
       if (exam.scheduledStart) {
         const scheduledStart = new Date(exam.scheduledStart);
         if (now < scheduledStart) {
-          const timeUntilStart = Math.ceil((scheduledStart - now) / (1000 * 60 * 60 * 24)); // Days until start
+          const timeUntilStart = Math.ceil((scheduledStart - now) / (1000* 60 * 60 * 12)); // Days until start
           if (timeUntilStart > 1) {
             return { 
               success: false, 
