@@ -333,7 +333,7 @@ const validateExamAttempt = (data) => {
     responses: Joi.array().items(
       Joi.object({
         questionId: Joi.string().required(),
-        selectedOptions: Joi.array().items(Joi.string()).optional(),
+        selectedOptions: Joi.array().items(Joi.alternatives().try(Joi.string(), Joi.number())).optional(),
         timeSpent: Joi.number().integer().min(0).optional(),
         essayAnswer: Joi.string().max(10000).allow(null, '').optional()
       })
@@ -349,7 +349,7 @@ const validateQuestionResponse = (data) => {
     questionId: Joi.string().required().messages({
       'any.required': 'Question ID is required'
     }),
-    selectedOptions: Joi.array().items(Joi.string()).optional().messages({
+    selectedOptions: Joi.array().items(Joi.alternatives().try(Joi.string(), Joi.number())).optional().messages({
       'array.base': 'Selected options must be an array'
     }),
     timeSpent: Joi.number().integer().min(0).max(3600).optional().messages({
