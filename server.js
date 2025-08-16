@@ -36,16 +36,26 @@ const notificationRoutes = require('./routes/notifications');
 
 const app = express();
 const server = http.createServer(app);
+
+// Trust proxy - needed when running behind nginx/load balancer
+app.set('trust proxy', true);
+
+// Middleware to ensure proper IP detection for logging and rate limiting
+app.use((req, res, next) => {
+  // Ensure req.ip is properly set from X-Forwarded-For header
+  req.realIP = req.ip || req.connection.remoteAddress || req.socket.remoteAddress || req.connection.socket?.remoteAddress;
+  next();
+});
 const io = socketIo(server, {
   cors: {
     origin: [
       'https://examinations.ariadelta.af',
       'https://31.97.70.79:5050',
-      'http://31.97.70.79:5050',
-      'http://localhost:3000', 
-      'http://localhost:5173',
-      'http://192.168.0.7:3000', 
-      'http://127.0.0.1:3000'
+      'https://localhost:3000', 
+      'https://localhost:5173',
+      'https://192.168.0.7:3000', 
+      'https://127.0.0.1:3000',
+      'http://localhost:2020'
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
@@ -74,7 +84,8 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
       'https://31.97.70.79:5050',
       'http://31.97.70.79:5050',
       'http://localhost:3000', 
-      'http://localhost:5173'
+      'http://localhost:5173',
+      'http://localhost:2020'
     ]
   : [
       'http://localhost:3000', 
@@ -82,7 +93,8 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
       'http://192.168.0.7:3000', 
       'http://127.0.0.1:3000',
       'https://31.97.70.79:5050',
-      'http://31.97.70.79:5050'
+      'http://31.97.70.79:5050',
+      'http://localhost:2020'
     ];
 
 app.use(cors({
@@ -113,6 +125,12 @@ const limiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  // Trust proxy headers for accurate IP detection
+  trustProxy: true,
+  // Use X-Forwarded-For header when available
+  keyGenerator: (req) => {
+    return req.ip || req.connection.remoteAddress || req.socket.remoteAddress || req.connection.socket?.remoteAddress;
+  }
 });
 
 // Slow down requests
@@ -120,6 +138,12 @@ const speedLimiter = slowDown({
   windowMs: parseInt(process.env.SLOW_DOWN_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
   delayAfter: parseInt(process.env.SLOW_DOWN_DELAY_AFTER) || 50000000000, // allow 500 requests per 15 minutes, then... (increased for development)
   delayMs: () => parseInt(process.env.SLOW_DOWN_DELAY_MS) || 500000000000, // begin adding 500ms of delay per request above 500
+  // Trust proxy headers for accurate IP detection
+  trustProxy: true,
+  // Use X-Forwarded-For header when available
+  keyGenerator: (req) => {
+    return req.ip || req.connection.remoteAddress || req.socket.remoteAddress || req.connection.socket?.remoteAddress;
+  }
 });
 
 app.use(limiter);
