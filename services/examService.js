@@ -864,11 +864,13 @@ class ExamService {
     try {
       logger.info('Starting completeExamAttempt', { attemptId, userId });
       
+      // FIXED: Use distinct to prevent duplicate responses
       const attempt = await prisma.examAttempt.findUnique({
         where: { id: attemptId },
         include: {
           exam: true,
           responses: {
+            distinct: ['questionId'],
             include: { question: true }
           }
         }
@@ -1080,9 +1082,13 @@ class ExamService {
         results: {
           totalQuestions,
           correctAnswers,
+          totalMarks: totalPossibleMarks,
+          obtainedMarks: totalScore,
           score: totalScore,
           percentage,
-          isPassed
+          isPassed,
+          // Show marks instead of just percentage
+          marksDisplay: `${totalScore}/${totalPossibleMarks} marks`
         }
       };
 
@@ -1094,7 +1100,8 @@ class ExamService {
           logger.info('Exam completion notification sent', { 
             attemptId, 
             userId, 
-            score: result.results.percentage 
+            score: result.results.percentage,
+            marks: result.results.marksDisplay
           });
         } catch (notificationError) {
           logger.error('Failed to send exam completion notification', {
