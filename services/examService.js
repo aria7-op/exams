@@ -879,6 +879,7 @@ class ExamService {
         hasExam: !!attempt?.exam, 
         examTitle: attempt?.exam?.title,
         responsesCount: attempt?.responses?.length || 0,
+        expectedQuestions: attempt?.exam?.totalQuestions || 0,
         responses: attempt?.responses?.map(r => ({
           id: r.id,
           questionId: r.questionId,
@@ -889,6 +890,19 @@ class ExamService {
           questionMarks: r.question?.marks || 1
         }))
       });
+
+      // CRITICAL DEBUG: Check for duplicate questions
+      const questionIds = attempt?.responses?.map(r => r.questionId) || [];
+      const uniqueQuestionIds = [...new Set(questionIds)];
+      
+      if (questionIds.length !== uniqueQuestionIds.length) {
+        logger.error('🚨 DUPLICATE QUESTIONS DETECTED!', {
+          totalResponses: questionIds.length,
+          uniqueQuestions: uniqueQuestionIds.length,
+          duplicates: questionIds.length - uniqueQuestionIds.length,
+          duplicateQuestionIds: questionIds.filter((id, index) => questionIds.indexOf(id) !== index)
+        });
+      }
 
       if (!attempt) {
         logger.error('Attempt not found', { attemptId });
@@ -909,13 +923,33 @@ class ExamService {
       let correctAnswers = 0;
       let totalScore = 0;
       let totalPossibleMarks = 0;
-      const totalQuestions = attempt.responses.length;
+      
+      // CRITICAL FIX: Remove duplicate questions to prevent scoring errors
+      const uniqueResponses = [];
+      const seenQuestionIds = new Set();
+      
+      for (const response of attempt.responses) {
+        if (!seenQuestionIds.has(response.questionId)) {
+          seenQuestionIds.add(response.questionId);
+          uniqueResponses.push(response);
+        } else {
+          logger.warn(`⚠️ Skipping duplicate question response: ${response.questionId}`);
+        }
+      }
+      
+      const totalQuestions = uniqueResponses.length;
+      
+      logger.info('Question deduplication completed', {
+        originalResponses: attempt.responses.length,
+        uniqueResponses: uniqueResponses.length,
+        duplicatesRemoved: attempt.responses.length - uniqueResponses.length
+      });
 
       logger.info('Calculating score', { 
         totalQuestions, 
         responsesCount: attempt.responses.length,
         expectedTotalQuestions: attempt.exam.totalQuestions,
-        responses: attempt.responses.map(r => ({
+        responses: uniqueResponses.map(r => ({
           questionId: r.questionId,
           questionType: r.question?.type,
           isCorrect: r.isCorrect,
@@ -941,7 +975,7 @@ class ExamService {
           ORDERING: attempt.exam.orderingQuestionsCount || 0
         };
         
-        const actualTypes = attempt.responses.reduce((acc, r) => {
+        const actualTypes = uniqueResponses.reduce((acc, r) => {
           acc[r.question?.type] = (acc[r.question?.type] || 0) + 1;
           return acc;
         }, {});
@@ -952,7 +986,7 @@ class ExamService {
         });
       }
 
-      for (const response of attempt.responses) {
+      for (const response of uniqueResponses) {
         logger.info('Processing response', { 
           questionId: response.questionId, 
           questionType: response.question?.type,
