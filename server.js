@@ -55,7 +55,8 @@ const io = socketIo(server, {
       'https://localhost:5173',
       'https://192.168.0.7:3000', 
       'https://127.0.0.1:3000',
-      'http://localhost:2020'
+      'http://localhost:2020',
+      'https://31.97.70.79:2021'
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
@@ -80,12 +81,7 @@ app.use(helmet({
 // CORS configuration
 const allowedOrigins = process.env.NODE_ENV === 'production' 
   ? [
-      'https://examinations.ariadelta.af',
-      'https://31.97.70.79:5050',
-      'http://31.97.70.79:5050',
-      'http://localhost:3000', 
-      'http://localhost:5173',
-      'http://localhost:2020'
+      'https://examinations.ariadelta.79:2021'
     ]
   : [
       'http://localhost:3000', 
@@ -94,7 +90,8 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
       'http://127.0.0.1:3000',
       'https://31.97.70.79:5050',
       'http://31.97.70.79:5050',
-      'http://localhost:2020'
+      'http://localhost:2020',
+      'https://31.97.70.79:2021'
     ];
 
 app.use(cors({
@@ -102,7 +99,12 @@ app.use(cors({
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
+    // Log all incoming origins for debugging
+    console.log('🌐 CORS request from origin:', origin);
+    console.log('✅ Allowed origins:', allowedOrigins);
+    
     if (allowedOrigins.indexOf(origin) !== -1) {
+      console.log('✅ CORS allowed for origin:', origin);
       callback(null, true);
     } else {
       console.log('🚫 CORS blocked origin:', origin);
@@ -114,6 +116,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
+
+// Handle preflight requests explicitly
+app.options('*', cors());
 
 // Rate limiting
 const limiter = rateLimit({
@@ -165,22 +170,40 @@ app.use(morgan('combined', { stream: logger.stream }));
 // Request logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
+  
+  // Log detailed request information for debugging
+  console.log(`🌐 ${req.method} ${req.path} - Origin: ${req.headers.origin || 'No origin'} - IP: ${req.ip}`);
+  
   res.on('finish', () => {
     const duration = Date.now() - start;
+    console.log(`✅ ${req.method} ${req.path} - Status: ${res.statusCode} - Duration: ${duration}ms`);
     logger.logRequest(req, res, duration);
   });
+  
   next();
 });
 
 // Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV,
-    version: process.env.npm_package_version || '1.0.0',
-  });
+app.get('/health', async (req, res) => {
+  try {
+    const dbHealth = await database.healthCheck();
+    
+    res.status(200).json({
+      status: 'OK',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment: process.env.NODE_ENV,
+      version: process.env.npm_package_version || '1.0.0',
+      database: dbHealth
+    });
+  } catch (error) {
+    console.log('💥 Health check failed:', error);
+    res.status(500).json({
+      status: 'ERROR',
+      timestamp: new Date().toISOString(),
+      error: error.message
+    });
+  }
 });
 
 // WebSocket event handlers

@@ -9,6 +9,9 @@ class Database {
 
   async connect() {
     try {
+      console.log('🔌 Attempting database connection...');
+      console.log('🔌 Database URL:', process.env.DATABASE_URL || 'Not set');
+      
       this.prisma = new PrismaClient({
         log: [
           {
@@ -31,9 +34,11 @@ class Database {
       });
 
       // Test the connection
+      console.log('🔌 Testing database connection...');
       await this.prisma.$connect();
       
       this.isConnected = true;
+      console.log('✅ Database connected successfully via Prisma');
       logger.info('Database connected successfully via Prisma');
 
       // Log queries in development
@@ -57,6 +62,8 @@ class Database {
 
       return this.prisma;
     } catch (error) {
+      console.log('💥 Database connection failed:', error);
+      console.log('💥 Database error stack:', error.stack);
       logger.error('Database connection failed:', error);
       throw error;
     }
@@ -76,6 +83,22 @@ class Database {
 
   isConnected() {
     return this.isConnected;
+  }
+
+  // Check if database is actually connected and working
+  async healthCheck() {
+    try {
+      if (!this.prisma) {
+        return { status: 'disconnected', message: 'Prisma client not initialized' };
+      }
+      
+      // Try a simple query to test the connection
+      await this.prisma.$queryRaw`SELECT 1`;
+      return { status: 'connected', message: 'Database is responding' };
+    } catch (error) {
+      console.log('💥 Database health check failed:', error);
+      return { status: 'error', message: error.message, error };
+    }
   }
 
   // Helper method for transactions

@@ -226,9 +226,13 @@ class AuthController {
    */
   async login(req, res) {
     try {
+      console.log('🔐 Login attempt - Body:', req.body);
+      console.log('🔐 Login attempt - Headers:', req.headers);
+      
       // Validate request
       const { error, value } = validateLogin(req.body);
       if (error) {
+        console.log('❌ Login validation failed:', error);
         return res.status(400).json({
           success: false,
           error: {
@@ -381,11 +385,14 @@ class AuthController {
         }
       });
     } catch (error) {
+      console.log('💥 Login error occurred:', error);
+      console.log('💥 Login error stack:', error.stack);
       logger.error('Login failed', error);
       res.status(500).json({
         success: false,
         error: {
-          message: 'Login failed'
+          message: 'Login failed',
+          details: error.message
         }
       });
     }
