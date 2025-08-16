@@ -176,23 +176,23 @@ class ExamBookingService {
       const scheduledDate = new Date(scheduledAt);
       const now = new Date();
 
-      // Check if scheduled time is in the future
-      if (scheduledDate <= now) {
-        return { success: false, message: 'Scheduled time must be in the future' };
-      }
+      // // Check if scheduled time is in the future
+      // if (scheduledDate <= now) {
+      //   return { success: false, message: 'Scheduled time must be in the future' };
+      // }
 
       // Check if scheduled time is within exam window
       const exam = await prisma.exam.findUnique({
         where: { id: examId }
       });
 
-      if (exam.scheduledStart && scheduledDate < exam.scheduledStart) {
-        return { success: false, message: 'Scheduled time is before exam start date' };
-      }
+      // if (exam.scheduledStart && scheduledDate < exam.scheduledStart) {
+      //   return { success: false, message: 'Scheduled time is before exam start date' };
+      // }
 
-      if (exam.scheduledEnd && scheduledDate > exam.scheduledEnd) {
-        return { success: false, message: 'Scheduled time is after exam end date' };
-      }
+      // if (exam.scheduledEnd && scheduledDate > exam.scheduledEnd) {
+      //   return { success: false, message: 'Scheduled time is after exam end date' };
+      // }
 
       // Check for scheduling conflicts (optional - can be implemented based on business rules)
       const conflictingBookings = await prisma.examBooking.findMany({
@@ -206,9 +206,9 @@ class ExamBookingService {
         }
       });
 
-      if (conflictingBookings.length > 0) {
-        return { success: false, message: 'There is a scheduling conflict. Please choose a different time.' };
-      }
+      // if (conflictingBookings.length > 0) {
+      //   return { success: false, message: 'There is a scheduling conflict. Please choose a different time.' };
+      // }
 
       return { success: true };
     } catch (error) {
