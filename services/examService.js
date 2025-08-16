@@ -795,6 +795,29 @@ class ExamService {
         // For fill-in-the-blank questions, we need to check text matching
         // The user's answer is stored in essayAnswer field
         isCorrect = this.checkFillInTheBlankAnswer(question, essayAnswer);
+        
+        // If essayAnswer is not provided but selectedOptions contains numeric indices,
+        // try to convert them to actual text answers
+        if (!isCorrect && !essayAnswer && selectedOptions && selectedOptions.length > 0) {
+          logger.info('Attempting to convert numeric indices to text answers for fill-in-the-blank', {
+            questionId,
+            selectedOptions,
+            questionOptions: question.options
+          });
+          
+          const textAnswers = selectedOptions.map(optionIndex => {
+            if (typeof optionIndex === 'number' && question.options[optionIndex]) {
+              return question.options[optionIndex].text;
+            }
+            return optionIndex;
+          });
+          
+          isCorrect = this.checkFillInTheBlankAnswer(question, textAnswers);
+          
+          if (isCorrect) {
+            logger.info('Successfully converted numeric indices to text answers', { textAnswers });
+          }
+        }
       } else {
         // For other question types, use the standard checkAnswer method
         isCorrect = this.checkAnswer(question, selectedOptions);
@@ -887,12 +910,21 @@ class ExamService {
       logger.info('Calculating score', { 
         totalQuestions, 
         responsesCount: attempt.responses.length,
+        expectedTotalQuestions: attempt.exam.totalQuestions,
         responses: attempt.responses.map(r => ({
           questionId: r.questionId,
+          questionType: r.question?.type,
           isCorrect: r.isCorrect,
-          selectedOptions: r.selectedOptions
+          selectedOptions: r.selectedOptions,
+          essayAnswer: r.essayAnswer
         }))
       });
+
+      // Check if we have all expected questions
+      if (totalQuestions !== attempt.exam.totalQuestions) {
+        logger.warn(`⚠️ Question count mismatch! Expected ${attempt.exam.totalQuestions}, got ${totalQuestions}`);
+        logger.warn('This may indicate that not all questions were answered or stored properly');
+      }
 
       for (const response of attempt.responses) {
         logger.info('Processing response', { 
@@ -1069,7 +1101,8 @@ class ExamService {
   }
 
   /**
-   * Check fill-in-the-blank answer
+   * Check fill-in-the-blank answer - ENHANCED VERSION
+   * This version handles multiple answer formats including numeric indices and text answers
    */
   checkFillInTheBlankAnswer(question, essayAnswer) {
     try {
@@ -1079,20 +1112,50 @@ class ExamService {
         return false;
       }
 
-      if (!essayAnswer || typeof essayAnswer !== 'string') {
-        logger.error('Invalid essayAnswer in checkFillInTheBlankAnswer', { essayAnswer });
+      // Get correct options
+      const correctOptions = question.options.filter(option => option && option.isCorrect);
+      if (correctOptions.length === 0) {
+        logger.warn('No correct options found for fill-in-the-blank question', { questionId: question.id });
         return false;
       }
 
-      // Parse the essay answer format: "Blank 1: answer1 | Blank 2: answer2 | ..."
-      const blankAnswers = essayAnswer.split(' | ').map(part => {
-        const match = part.match(/^Blank \d+: (.+)$/);
-        return match ? match[1].trim() : '';
-      }).filter(answer => answer.length > 0);
+      logger.info('Checking fill-in-the-blank answer', {
+        questionId: question.id,
+        questionType: question.type,
+        essayAnswer,
+        correctOptionsCount: correctOptions.length,
+        correctOptions: correctOptions.map(opt => ({ id: opt.id, text: opt.text, isCorrect: opt.isCorrect }))
+      });
+
+      // Handle different answer formats
+      let blankAnswers = [];
+
+      if (typeof essayAnswer === 'string' && essayAnswer.includes(' | ')) {
+        // Format: "Blank 1: answer1 | Blank 2: answer2 | ..."
+        blankAnswers = essayAnswer.split(' | ').map(part => {
+          const match = part.match(/^Blank \d+: (.+)$/);
+          return match ? match[1].trim() : '';
+        }).filter(answer => answer.length > 0);
+      } else if (Array.isArray(essayAnswer)) {
+        // Format: ["answer1", "answer2", ...]
+        blankAnswers = essayAnswer.filter(answer => answer && typeof answer === 'string' && answer.trim().length > 0);
+      } else if (typeof essayAnswer === 'string' && essayAnswer.trim().length > 0) {
+        // Single answer format
+        blankAnswers = [essayAnswer.trim()];
+      } else {
+        logger.warn('Unexpected essayAnswer format', { essayAnswer, type: typeof essayAnswer });
+        return false;
+      }
+
+      logger.info('Parsed blank answers', { blankAnswers, count: blankAnswers.length });
 
       // Check if we have the right number of answers
-      const correctOptions = question.options.filter(option => option && option.isCorrect);
       if (blankAnswers.length !== correctOptions.length) {
+        logger.warn('Answer count mismatch', { 
+          expected: correctOptions.length, 
+          actual: blankAnswers.length,
+          blankAnswers 
+        });
         return false;
       }
 
@@ -1100,13 +1163,29 @@ class ExamService {
       let correctBlanks = 0;
       correctOptions.forEach((correctOption, index) => {
         const userAnswer = blankAnswers[index];
-        if (userAnswer && userAnswer.toLowerCase() === correctOption.text.toLowerCase()) {
+        const isCorrect = userAnswer && userAnswer.toLowerCase().trim() === correctOption.text.toLowerCase().trim();
+        
+        if (isCorrect) {
           correctBlanks++;
         }
+        
+        logger.info(`Blank ${index + 1} check`, {
+          userAnswer,
+          correctAnswer: correctOption.text,
+          isCorrect
+        });
+      });
+
+      const finalResult = correctBlanks === correctOptions.length;
+      logger.info('Fill-in-the-blank answer check result', {
+        questionId: question.id,
+        correctBlanks,
+        totalBlanks: correctOptions.length,
+        isCorrect: finalResult
       });
 
       // Consider the answer correct if all blanks are filled correctly
-      return correctBlanks === correctOptions.length;
+      return finalResult;
     } catch (error) {
       logger.error('Error checking fill-in-the-blank answer:', error);
       return false;
