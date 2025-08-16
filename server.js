@@ -38,20 +38,15 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' 
-      ? [
-          'https://examinations.ariadelta.af',
-          'https://31.97.70.79:5050',
-          'http://31.97.70.79:5050',
-          'http://localhost:3000', 
-          'http://localhost:5173'
-        ]
-      : [
-          'http://localhost:3000', 
-          'http://localhost:5173', 
-          'http://192.168.0.7:3000', 
-          'http://127.0.0.1:3000'
-        ],
+    origin: [
+      'https://examinations.ariadelta.af',
+      'https://31.97.70.79:5050',
+      'http://31.97.70.79:5050',
+      'http://localhost:3000', 
+      'http://localhost:5173',
+      'http://192.168.0.7:3000', 
+      'http://127.0.0.1:3000'
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
   }
@@ -85,7 +80,9 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
       'http://localhost:3000', 
       'http://localhost:5173', 
       'http://192.168.0.7:3000', 
-      'http://127.0.0.1:3000'
+      'http://127.0.0.1:3000',
+      'https://31.97.70.79:5050',
+      'http://31.97.70.79:5050'
     ];
 
 app.use(cors({
