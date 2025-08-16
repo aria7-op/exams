@@ -882,8 +882,11 @@ class ExamService {
         responses: attempt?.responses?.map(r => ({
           id: r.id,
           questionId: r.questionId,
+          questionType: r.question?.type,
           isCorrect: r.isCorrect,
-          selectedOptions: r.selectedOptions
+          selectedOptions: r.selectedOptions,
+          essayAnswer: r.essayAnswer,
+          questionMarks: r.question?.marks || 1
         }))
       });
 
@@ -905,6 +908,7 @@ class ExamService {
       // Calculate score
       let correctAnswers = 0;
       let totalScore = 0;
+      let totalPossibleMarks = 0;
       const totalQuestions = attempt.responses.length;
 
       logger.info('Calculating score', { 
@@ -916,7 +920,8 @@ class ExamService {
           questionType: r.question?.type,
           isCorrect: r.isCorrect,
           selectedOptions: r.selectedOptions,
-          essayAnswer: r.essayAnswer
+          essayAnswer: r.essayAnswer,
+          questionMarks: r.question?.marks || 1
         }))
       });
 
@@ -924,28 +929,61 @@ class ExamService {
       if (totalQuestions !== attempt.exam.totalQuestions) {
         logger.warn(`⚠️ Question count mismatch! Expected ${attempt.exam.totalQuestions}, got ${totalQuestions}`);
         logger.warn('This may indicate that not all questions were answered or stored properly');
+        
+        // Log which question types are missing
+        const expectedTypes = {
+          MULTIPLE_CHOICE: attempt.exam.multipleChoiceQuestionsCount || 0,
+          FILL_IN_THE_BLANK: attempt.exam.fillInTheBlankQuestionsCount || 0,
+          ESSAY: attempt.exam.essayQuestionsCount || 0,
+          SHORT_ANSWER: attempt.exam.shortAnswerQuestionsCount || 0,
+          TRUE_FALSE: attempt.exam.trueFalseQuestionsCount || 0,
+          MATCHING: attempt.exam.matchingQuestionsCount || 0,
+          ORDERING: attempt.exam.orderingQuestionsCount || 0
+        };
+        
+        const actualTypes = attempt.responses.reduce((acc, r) => {
+          acc[r.question?.type] = (acc[r.question?.type] || 0) + 1;
+          return acc;
+        }, {});
+        
+        logger.warn('Question type distribution mismatch:', {
+          expected: expectedTypes,
+          actual: actualTypes
+        });
       }
 
       for (const response of attempt.responses) {
         logger.info('Processing response', { 
           questionId: response.questionId, 
+          questionType: response.question?.type,
           isCorrect: response.isCorrect,
-          selectedOptions: response.selectedOptions 
+          selectedOptions: response.selectedOptions,
+          questionMarks: response.question?.marks || 1
         });
+        
+        // Calculate total possible marks for this question
+        const questionMarks = response.question?.marks || 1;
+        totalPossibleMarks += questionMarks;
         
         // Use the isCorrect field from the database response
         if (response.isCorrect) {
           correctAnswers++;
-          totalScore += 1; // Each question is worth 1 point
+          // Use actual question marks instead of just 1 point
+          totalScore += questionMarks;
+          
+          logger.info(`✅ Question ${response.questionId} correct: +${questionMarks} marks`);
+        } else {
+          logger.info(`❌ Question ${response.questionId} incorrect: 0 marks`);
         }
       }
 
-      const percentage = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
+      const percentage = totalPossibleMarks > 0 ? (totalScore / totalPossibleMarks) * 100 : 0;
       const isPassed = percentage >= (attempt.exam.passingMarks || 50); // Default to 50% if not specified
 
       logger.info('Score calculation completed', { 
         correctAnswers, 
         totalScore, 
+        totalPossibleMarks,
         percentage, 
         isPassed 
       });
@@ -953,7 +991,7 @@ class ExamService {
       // Update attempt
       logger.info('Updating attempt', { 
         attemptId, 
-        totalMarks: totalQuestions, 
+        totalMarks: totalPossibleMarks, 
         obtainedMarks: totalScore, 
         percentage, 
         isPassed 
@@ -964,7 +1002,7 @@ class ExamService {
         data: {
           status: 'COMPLETED',
           completedAt: new Date(),
-          totalMarks: totalQuestions,
+          totalMarks: totalPossibleMarks,
           obtainedMarks: totalScore,
           percentage,
           isPassed
