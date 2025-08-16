@@ -951,6 +951,7 @@ class ExamService {
         totalQuestions, 
         responsesCount: attempt.responses.length,
         expectedTotalQuestions: attempt.exam.totalQuestions,
+        examTotalMarks: attempt.exam.totalMarks, // Log the exam's configured total marks
         responses: uniqueResponses.map(r => ({
           questionId: r.questionId,
           questionType: r.question?.type,
@@ -988,6 +989,15 @@ class ExamService {
         });
       }
 
+      // CRITICAL FIX: Use exam's configured total marks instead of calculating from responses
+      // This prevents issues with duplicate questions or missing questions
+      totalPossibleMarks = attempt.exam.totalMarks || 0;
+      
+      logger.info('Using exam configured total marks', {
+        examTotalMarks: attempt.exam.totalMarks,
+        calculatedTotalMarks: totalPossibleMarks
+      });
+
       for (const response of uniqueResponses) {
         logger.info('Processing response', { 
           questionId: response.questionId, 
@@ -997,17 +1007,13 @@ class ExamService {
           questionMarks: response.question?.marks || 1
         });
         
-        // Calculate total possible marks for this question
-        const questionMarks = response.question?.marks || 1;
-        totalPossibleMarks += questionMarks;
-        
         // Use the isCorrect field from the database response
         if (response.isCorrect) {
           correctAnswers++;
           // Use actual question marks instead of just 1 point
-          totalScore += questionMarks;
+          totalScore += (response.question?.marks || 1);
           
-          logger.info(`✅ Question ${response.questionId} correct: +${questionMarks} marks`);
+          logger.info(`✅ Question ${response.questionId} correct: +${response.question?.marks || 1} marks`);
         } else {
           logger.info(`❌ Question ${response.questionId} incorrect: 0 marks`);
         }
@@ -1080,7 +1086,7 @@ class ExamService {
         },
         certificate,
         results: {
-          totalQuestions,
+          totalQuestions: attempt.exam.totalQuestions, // Use exam configuration, not response count
           correctAnswers,
           totalMarks: totalPossibleMarks,
           obtainedMarks: totalScore,
