@@ -57,24 +57,24 @@ class ExamBookingService {
       });
       
       // Handle scheduled start date
-      if (exam.scheduledStart) {
-        const scheduledStart = new Date(exam.scheduledStart);
-        if (now < scheduledStart) {
-          const timeUntilStart = Math.ceil((scheduledStart - now) / (1000 * 60 * 60 * 24)); // Days until start
-          if (timeUntilStart > 1) {
-            return { 
-              success: false, 
-              message: `Exam will be available for booking in ${timeUntilStart} days (starts ${scheduledStart.toLocaleDateString()})` 
-            };
-          } else {
-            const hoursUntilStart = Math.ceil((scheduledStart - now) / (1000 * 60 * 60));
-            return { 
-              success: false, 
-              message: `Exam will be available for booking in ${hoursUntilStart} hours (starts ${scheduledStart.toLocaleDateString()})` 
-            };
-          }
-        }
-      }
+      // if (exam.scheduledStart) {
+      //   const scheduledStart = new Date(exam.scheduledStart);
+      //   if (now < scheduledStart) {
+      //     const timeUntilStart = Math.ceil((scheduledStart - now) / (1000 * 60 * 60 * 24)); // Days until start
+      //     if (timeUntilStart > 1) {
+      //       return { 
+      //         success: false, 
+      //         message: `Exam will be available for booking in ${timeUntilStart} days (starts ${scheduledStart.toLocaleDateString()})` 
+      //       };
+      //     } else {
+      //       const hoursUntilStart = Math.ceil((scheduledStart - now) / (1000 * 60 * 60));
+      //       return { 
+      //         success: false, 
+      //       message: `Exam will be available for booking in ${hoursUntilStart} hours (starts ${scheduledStart.toLocaleDateString()})` 
+      //       };
+      //     }
+      //   }
+      // }
 
       // Handle scheduled end date
       if (exam.scheduledEnd) {
