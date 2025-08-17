@@ -249,7 +249,19 @@ class ExamBookingService {
             payment: true,
             attempts: {
               orderBy: { createdAt: 'desc' },
-              take: 1
+              take: 1,
+              select: {
+                id: true,
+                status: true,
+                startedAt: true,
+                completedAt: true,
+                totalMarks: true,
+                obtainedMarks: true,
+                percentage: true,
+                isPassed: true,
+                createdAt: true,
+                updatedAt: true
+              }
             }
           },
           orderBy: { createdAt: 'desc' },
@@ -298,16 +310,45 @@ class ExamBookingService {
             }
           },
           payment: true,
-          attempts: {
-            include: {
-              responses: {
-                include: {
-                  question: true
+                      attempts: {
+              select: {
+                id: true,
+                status: true,
+                startedAt: true,
+                completedAt: true,
+                totalMarks: true,
+                obtainedMarks: true,
+                percentage: true,
+                isPassed: true,
+                createdAt: true,
+                updatedAt: true,
+                responses: {
+                  select: {
+                    id: true,
+                    selectedOptions: true,
+                    isCorrect: true,
+                    marksObtained: true,
+                    timeSpent: true,
+                    answeredAt: true,
+                    submittedAt: true,
+                    essayAnswer: true,
+                    score: true,
+                    feedback: true,
+                    percentage: true,
+                    question: {
+                      select: {
+                        id: true,
+                        text: true,
+                        type: true,
+                        difficulty: true,
+                        marks: true
+                      }
+                    }
+                  }
                 }
-              }
-            },
-            orderBy: { createdAt: 'desc' }
-          }
+              },
+              orderBy: { createdAt: 'desc' }
+            }
         }
       });
 
