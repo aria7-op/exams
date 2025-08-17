@@ -294,7 +294,7 @@ model ExamAttempt {
   userId         String
   examId         String
   bookingId      String?
-  wantsCertificate Boolean            @default(true) // Whether student wants a certificate
+  // wantsCertificate Boolean            @default(true) // Whether student wants a certificate
   startedAt      DateTime           @default(now())
   completedAt    DateTime?
   status         AttemptStatus      @default(IN_PROGRESS)
