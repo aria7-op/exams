@@ -488,7 +488,17 @@ router.get('/users/:userId', async (req, res) => {
             gte: startDate,
           },
         },
-        include: {
+        select: {
+          id: true,
+          status: true,
+          startedAt: true,
+          completedAt: true,
+          totalMarks: true,
+          obtainedMarks: true,
+          percentage: true,
+          isPassed: true,
+          createdAt: true,
+          updatedAt: true,
           exam: {
             select: {
               title: true,
