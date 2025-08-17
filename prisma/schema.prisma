@@ -108,6 +108,9 @@ model Question {
   examCategoryId                    String
   marks                             Int                @default(1)
   timeLimit                         Int?
+  remark                            String?            // Additional details/notes about the question
+  tableData                         String?            // For accounting table questions, stores the table structure
+  answerSections                    Json?              // For compound choice questions, stores the answer sections structure
   isActive                          Boolean            @default(true)
   isPublic                          Boolean            @default(false)
   createdBy                         String
@@ -201,6 +204,8 @@ model Exam {
   randomizeQuestions        Boolean        @default(true)
   randomizeOptions          Boolean        @default(true)
   questionOverlapPercentage Float          @default(10.0)
+  instructions              String?        @db.Text
+  rules                     String?        @db.Text
   createdBy                 String
   approvedBy                String?
   approvedAt                DateTime?
@@ -289,6 +294,7 @@ model ExamAttempt {
   userId         String
   examId         String
   bookingId      String?
+  wantsCertificate Boolean            @default(true) // Whether student wants a certificate
   startedAt      DateTime           @default(now())
   completedAt    DateTime?
   status         AttemptStatus      @default(IN_PROGRESS)
@@ -496,6 +502,7 @@ model Certificate {
   examId            String
   attemptId         String      @unique
   certificateNumber String      @unique
+  status            String      @default("EARNED") // EARNED, DOWNLOADED, VIEWED, etc.
   issuedAt          DateTime    @default(now())
   expiresAt         DateTime?
   isRevoked         Boolean     @default(false)
@@ -732,6 +739,8 @@ enum QuestionType {
   ESSAY
   MATCHING
   ORDERING
+  ACCOUNTING_TABLE
+  COMPOUND_CHOICE
 }
 
 enum QuestionDifficulty {
