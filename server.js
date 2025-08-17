@@ -120,13 +120,13 @@ app.use(cors({
 // Handle preflight requests explicitly
 app.options('*', cors());
 
-// Rate limiting
+// Rate limiting - Development-friendly configuration
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100000000000, // limit each IP to 1000 requests per windowMs (increased for development)
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000, // limit each IP to 1000 requests per 15 minutes
   message: {
     error: 'Too many requests from this IP, please try again later.',
-    retryAfter: Math.ceil((parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000) / 1000000000000),
+    retryAfter: Math.ceil((parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000) / 1000),
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -135,24 +135,33 @@ const limiter = rateLimit({
   // Use X-Forwarded-For header when available
   keyGenerator: (req) => {
     return req.ip || req.connection.remoteAddress || req.socket.remoteAddress || req.connection.socket?.remoteAddress;
+  },
+  // Skip rate limiting for health checks and OPTIONS requests
+  skip: (req) => {
+    return req.path === '/health' || req.method === 'OPTIONS';
   }
 });
 
-// Slow down requests
+// Slow down requests - Development-friendly configuration
 const speedLimiter = slowDown({
   windowMs: parseInt(process.env.SLOW_DOWN_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  delayAfter: parseInt(process.env.SLOW_DOWN_DELAY_AFTER) || 50000000000, // allow 500 requests per 15 minutes, then... (increased for development)
-  delayMs: () => parseInt(process.env.SLOW_DOWN_DELAY_MS) || 500000000000, // begin adding 500ms of delay per request above 500
+  delayAfter: parseInt(process.env.SLOW_DOWN_DELAY_AFTER) || 500, // allow 500 requests per 15 minutes, then...
+  delayMs: () => parseInt(process.env.SLOW_DOWN_DELAY_MS) || 500, // begin adding 500ms of delay per request above 500
   // Trust proxy headers for accurate IP detection
   trustProxy: true,
   // Use X-Forwarded-For header when available
   keyGenerator: (req) => {
     return req.ip || req.connection.remoteAddress || req.socket.remoteAddress || req.connection.socket?.remoteAddress;
+  },
+  // Skip slow down for health checks and OPTIONS requests
+  skip: (req) => {
+    return req.path === '/health' || req.method === 'OPTIONS';
   }
 });
 
-app.use(limiter);
-app.use(speedLimiter);
+// Commented out rate limiting to prevent 429 errors during development
+// app.use(limiter);
+// app.use(speedLimiter);
 
 // Compression
 app.use(compression());
