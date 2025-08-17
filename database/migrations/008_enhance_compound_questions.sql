@@ -1,0 +1,48 @@
+-- Migration: Enhance compound questions structure
+-- Date: 2024-01-XX
+-- Description: Enhances answerSections to support different question types within each section
+
+-- The answerSections JSONB field will now support this enhanced structure:
+-- {
+--   "sections": [
+--     {
+--       "id": "section1",
+--       "title": "Amount Calculation",
+--       "type": "MULTIPLE_CHOICE",
+--       "question": "What is the total cost?",
+--       "options": [
+--         {"text": "$600,000", "isCorrect": false},
+--         {"text": "$650,000", "isCorrect": true},
+--         {"text": "$685,000", "isCorrect": false}
+--       ],
+--       "marks": 5,
+--       "required": true
+--     },
+--     {
+--       "id": "section2", 
+--       "title": "Double Entry",
+--       "type": "SINGLE_CHOICE",
+--       "question": "Select the correct double entry:",
+--       "options": [
+--         {"text": "Cr Cash, Dr Non-current assets", "isCorrect": true},
+--         {"text": "Dr Cash, Cr Non-current assets", "isCorrect": false}
+--       ],
+--       "marks": 5,
+--       "required": true
+--     },
+--     {
+--       "id": "section3",
+--       "title": "Additional Notes",
+--       "type": "FILL_IN_THE_BLANK",
+--       "question": "What accounting principle applies?",
+--       "correctAnswers": ["matching principle", "accrual basis"],
+--       "marks": 3,
+--       "required": false
+--     }
+--   ],
+--   "totalMarks": 13,
+--   "scoringMethod": "SECTION_BASED" // or "OVERALL"
+-- }
+
+-- Add comment to document the enhanced structure
+COMMENT ON COLUMN questions."answerSections" IS 'Enhanced structure for compound questions with multiple sections of different types'; 
