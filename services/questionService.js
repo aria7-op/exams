@@ -18,6 +18,9 @@ class QuestionService {
         marks,
         timeLimit,
         examCategoryId,
+        remark,
+        tableData,
+        answerSections,
         options,
         images = []
       } = questionData;
@@ -41,6 +44,9 @@ class QuestionService {
         marks,
         timeLimit,
         examCategoryId,
+        remark,
+        tableData,
+        answerSections,
         createdBy,
         updatedAt: new Date()
       };
@@ -59,13 +65,39 @@ class QuestionService {
               }]
             };
           }
-        } else if (['MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK'].includes(type)) {
-          questionCreateData.options = {
-            create: options.map(option => ({
-              text: option.text,
-              isCorrect: option.isCorrect
-            }))
-          };
+        } else if (['MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'SHORT_ANSWER', 'ACCOUNTING_TABLE', 'COMPOUND_CHOICE'].includes(type)) {
+          // For SHORT_ANSWER questions, the first option should be the expected answer
+          if (type === 'SHORT_ANSWER' && options.length > 0) {
+            questionCreateData.options = {
+              create: [{
+                text: options[0].text,
+                isCorrect: true
+              }]
+            };
+          } else if (type === 'ACCOUNTING_TABLE' && options.length > 0) {
+            // For ACCOUNTING_TABLE questions, store all options
+            questionCreateData.options = {
+              create: options.map(option => ({
+                text: option.text,
+                isCorrect: option.isCorrect
+              }))
+            };
+          } else if (type === 'COMPOUND_CHOICE' && options.length > 0) {
+            // For COMPOUND_CHOICE questions, store all options
+            questionCreateData.options = {
+              create: options.map(option => ({
+                text: option.text,
+                isCorrect: option.isCorrect
+              }))
+            };
+          } else {
+            questionCreateData.options = {
+              create: options.map(option => ({
+                text: option.text,
+                isCorrect: option.isCorrect
+              }))
+            };
+          }
         }
       }
 
