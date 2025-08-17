@@ -1850,7 +1850,8 @@ class QuestionRandomizationService {
       matching: { requested: distribution.matchingQuestionsCount, actual: finalDistribution['MATCHING'] || 0 },
       ordering: { requested: distribution.orderingQuestionsCount, actual: finalDistribution['ORDERING'] || 0 },
       accountingTable: { requested: distribution.accountingTableQuestionsCount, actual: finalDistribution['ACCOUNTING_TABLE'] || 0 },
-      compoundChoice: { requested: distribution.compoundChoiceQuestionsCount, actual: finalDistribution['COMPOUND_CHOICE'] || 0 }
+      compoundChoice: { requested: distribution.compoundChoiceQuestionsCount, actual: finalDistribution['COMPOUND_CHOICE'] || 0 },
+      enhancedCompound: { requested: distribution.enhancedCompoundQuestionsCount, actual: finalDistribution['ENHANCED_COMPOUND'] || 0 }
     });
 
     // CRITICAL: Ensure we have the exact distribution requested
@@ -1871,7 +1872,8 @@ class QuestionRandomizationService {
         matching: { expected: distribution.matchingQuestionsCount, actual: finalDistribution['MATCHING'] || 0 },
         ordering: { expected: distribution.orderingQuestionsCount, actual: finalDistribution['ORDERING'] || 0 },
         accountingTable: { expected: distribution.accountingTableQuestionsCount, actual: finalDistribution['ACCOUNTING_TABLE'] || 0 },
-        compoundChoice: { expected: distribution.compoundChoiceQuestionsCount, actual: finalDistribution['COMPOUND_CHOICE'] || 0 }
+        compoundChoice: { expected: distribution.compoundChoiceQuestionsCount, actual: finalDistribution['COMPOUND_CHOICE'] || 0 },
+        enhancedCompound: { expected: distribution.enhancedCompoundQuestionsCount, actual: finalDistribution['ENHANCED_COMPOUND'] || 0 }
       });
     } else {
       logger.info('✅ SUCCESS: Exact question distribution achieved!');
@@ -1897,7 +1899,8 @@ class QuestionRandomizationService {
       'MATCHING': 'matchingQuestionsCount',
       'ORDERING': 'orderingQuestionsCount',
       'ACCOUNTING_TABLE': 'accountingTableQuestionsCount',
-      'COMPOUND_CHOICE': 'compoundChoiceQuestionsCount'
+      'COMPOUND_CHOICE': 'compoundChoiceQuestionsCount',
+      'ENHANCED_COMPOUND': 'enhancedCompoundQuestionsCount'
     };
 
     for (const [questionType, distributionKey] of Object.entries(typeMapping)) {
