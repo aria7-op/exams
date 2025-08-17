@@ -241,10 +241,24 @@ class ExamController {
             difficulty: q.difficulty,
             marks: q.marks,
             timeLimit: q.timeLimit,
-            options: q.options?.map(opt => ({
-              id: opt.id,
-              text: opt.text
-            })) || [],
+            options: q.options?.map(opt => {
+              const baseOption = {
+                id: opt.id,
+                text: opt.text
+              };
+              
+              // Add type-specific properties
+              if (q.type === 'MATCHING') {
+                // For matching questions, we need to identify which options belong together
+                // We'll use the sortOrder to determine pairs
+                baseOption.pairId = opt.sortOrder;
+              } else if (q.type === 'ORDERING') {
+                // For ordering questions, we need the correct order
+                baseOption.correctOrder = opt.sortOrder;
+              }
+              
+              return baseOption;
+            }) || [],
             images: q.images || []
           })),
           duration: result.exam.duration,
