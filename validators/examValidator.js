@@ -195,8 +195,9 @@ const validateExamUpdate = (data) => {
     trueFalseQuestionsCount: Joi.number().integer().min(0).optional(),
     matchingQuestionsCount: Joi.number().integer().min(0).optional(),
     orderingQuestionsCount: Joi.number().integer().min(0).optional(),
-    accountingTableQuestionsCount: Joi.number().integer().min(0).optional(),
-    compoundChoiceQuestionsCount: Joi.number().integer().min(0).optional()
+            accountingTableQuestionsCount: Joi.number().integer().min(0).optional(),
+        compoundChoiceQuestionsCount: Joi.number().integer().min(0).optional(),
+        enhancedCompoundQuestionsCount: Joi.number().integer().min(0).optional()
   });
 
   return schema.unknown().validate(data);
@@ -210,7 +211,7 @@ const validateQuestionCreation = (data) => {
       'string.max': 'Question text cannot exceed 2000 characters',
       'any.required': 'Question text is required'
     }),
-    type: Joi.string().valid('MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'SHORT_ANSWER', 'ESSAY', 'MATCHING', 'ORDERING', 'ACCOUNTING_TABLE', 'COMPOUND_CHOICE').required().messages({
+            type: Joi.string().valid('MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'SHORT_ANSWER', 'ESSAY', 'MATCHING', 'ORDERING', 'ACCOUNTING_TABLE', 'COMPOUND_CHOICE', 'ENHANCED_COMPOUND').required().messages({
       'any.only': 'Invalid question type',
       'any.required': 'Question type is required'
     }),
@@ -303,7 +304,7 @@ const validateQuestionUpdate = (data) => {
       'string.min': 'Question text must be at least 10 characters long',
       'string.max': 'Question text cannot exceed 2000 characters'
     }),
-    type: Joi.string().valid('MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'SHORT_ANSWER', 'ESSAY', 'MATCHING', 'ORDERING', 'ACCOUNTING_TABLE', 'COMPOUND_CHOICE').optional().messages({
+            type: Joi.string().valid('MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'SHORT_ANSWER', 'ESSAY', 'MATCHING', 'ORDERING', 'ACCOUNTING_TABLE', 'COMPOUND_CHOICE', 'ENHANCED_COMPOUND').optional().messages({
       'any.only': 'Invalid question type'
     }),
     difficulty: Joi.string().valid('EASY', 'MEDIUM', 'HARD', 'EXPERT').optional().messages({
@@ -475,7 +476,7 @@ const validateExamCategory = (data) => {
 const validateBulkQuestionImport = (data) => {
   const questionSchema = Joi.object({
     text: Joi.string().min(10).max(2000).required(),
-    type: Joi.string().valid('MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'SHORT_ANSWER', 'ESSAY', 'MATCHING', 'ORDERING', 'ACCOUNTING_TABLE', 'COMPOUND_CHOICE').required(),
+            type: Joi.string().valid('MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'SHORT_ANSWER', 'ESSAY', 'MATCHING', 'ORDERING', 'ACCOUNTING_TABLE', 'COMPOUND_CHOICE', 'ENHANCED_COMPOUND').required(),
     difficulty: Joi.string().valid('EASY', 'MEDIUM', 'HARD', 'EXPERT').required(),
     examCategoryId: Joi.string().required(),
     marks: Joi.number().integer().min(1).max(100).default(1),

@@ -84,8 +84,9 @@ class QuestionRandomizationService {
       trueFalseQuestionsCount = 0,
       matchingQuestionsCount = 0,
       orderingQuestionsCount = 0,
-      accountingTableQuestionsCount = 0,
-      compoundChoiceQuestionsCount = 0
+              accountingTableQuestionsCount = 0,
+        compoundChoiceQuestionsCount = 0,
+        enhancedCompoundQuestionsCount = 0
     } = params;
 
     try {
@@ -166,11 +167,11 @@ class QuestionRandomizationService {
 
       if (hasTypeDistribution && selectedQuestions.length > 0) {
         // Verify we got the expected total count
-        const expectedTotal = essayQuestionsCount + multipleChoiceQuestionsCount + 
-                             shortAnswerQuestionsCount + fillInTheBlankQuestionsCount + 
-                             trueFalseQuestionsCount + matchingQuestionsCount + 
-                             orderingQuestionsCount + accountingTableQuestionsCount + 
-                             compoundChoiceQuestionsCount;
+              const expectedTotal = essayQuestionsCount + multipleChoiceQuestionsCount + 
+                           shortAnswerQuestionsCount + fillInTheBlankQuestionsCount + 
+                           trueFalseQuestionsCount + matchingQuestionsCount + 
+                           orderingQuestionsCount + accountingTableQuestionsCount + 
+                           compoundChoiceQuestionsCount + enhancedCompoundQuestionsCount;
         
         if (selectedQuestions.length !== expectedTotal) {
           logger.warn(`⚠️ Question count mismatch! Expected ${expectedTotal}, got ${selectedQuestions.length}`);
@@ -418,10 +419,25 @@ class QuestionRandomizationService {
         },
         status: 'COMPLETED'
       },
-      include: {
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
         responses: {
-          include: {
-            question: true
+          select: {
+            id: true,
+            questionId: true,
+            isCorrect: true,
+            answeredAt: true,
+            question: {
+              select: {
+                id: true,
+                text: true,
+                type: true,
+                difficulty: true,
+                marks: true
+              }
+            }
           }
         }
       },

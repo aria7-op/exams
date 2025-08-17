@@ -47,7 +47,8 @@ class ExamService {
         matchingQuestionsCount = 0,
         orderingQuestionsCount = 0,
         accountingTableQuestionsCount = 0,
-        compoundChoiceQuestionsCount = 0
+        compoundChoiceQuestionsCount = 0,
+        enhancedCompoundQuestionsCount = 0
       } = examData;
 
       // Use the correct field names
@@ -63,7 +64,7 @@ class ExamService {
                              shortAnswerQuestionsCount + fillInTheBlankQuestionsCount + 
                              trueFalseQuestionsCount + matchingQuestionsCount + 
                              orderingQuestionsCount + accountingTableQuestionsCount + 
-                             compoundChoiceQuestionsCount;
+                             compoundChoiceQuestionsCount + enhancedCompoundQuestionsCount;
       }
 
       // Calculate totalMarks if not provided
@@ -87,7 +88,7 @@ class ExamService {
             shortAnswerQuestionsCount > 0 || fillInTheBlankQuestionsCount > 0 || 
             trueFalseQuestionsCount > 0 || matchingQuestionsCount > 0 || 
             orderingQuestionsCount > 0 || accountingTableQuestionsCount > 0 || 
-            compoundChoiceQuestionsCount > 0) {
+            compoundChoiceQuestionsCount > 0 || enhancedCompoundQuestionsCount > 0) {
         
         logger.info('Validating question distribution before exam creation', {
           examCategoryId: finalExamCategoryId,
@@ -100,7 +101,8 @@ class ExamService {
             matching: matchingQuestionsCount,
             ordering: orderingQuestionsCount,
             accountingTable: accountingTableQuestionsCount,
-            compoundChoice: compoundChoiceQuestionsCount
+            compoundChoice: compoundChoiceQuestionsCount,
+            enhancedCompound: enhancedCompoundQuestionsCount
           }
         });
 
@@ -116,7 +118,8 @@ class ExamService {
               matchingQuestionsCount,
               orderingQuestionsCount,
               accountingTableQuestionsCount,
-              compoundChoiceQuestionsCount
+              compoundChoiceQuestionsCount,
+              enhancedCompoundQuestionsCount
             }
           );
 
@@ -182,8 +185,9 @@ class ExamService {
           trueFalseQuestionsCount,
           matchingQuestionsCount,
           orderingQuestionsCount,
-          accountingTableQuestionsCount,
-          compoundChoiceQuestionsCount,
+                  accountingTableQuestionsCount,
+        compoundChoiceQuestionsCount,
+        enhancedCompoundQuestionsCount,
           createdBy
         },
         include: {

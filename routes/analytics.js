@@ -58,7 +58,17 @@ router.get('/dashboard', async (req, res) => {
             gte: startDate,
           },
         },
-        include: {
+        select: {
+          id: true,
+          status: true,
+          startedAt: true,
+          completedAt: true,
+          totalMarks: true,
+          obtainedMarks: true,
+          percentage: true,
+          isPassed: true,
+          createdAt: true,
+          updatedAt: true,
           user: {
             select: {
               firstName: true,
@@ -256,7 +266,17 @@ router.get('/exams/:examId', async (req, res) => {
             gte: startDate,
           },
         },
-        include: {
+        select: {
+          id: true,
+          status: true,
+          startedAt: true,
+          completedAt: true,
+          totalMarks: true,
+          obtainedMarks: true,
+          percentage: true,
+          isPassed: true,
+          createdAt: true,
+          updatedAt: true,
           user: {
             select: {
               firstName: true,
@@ -338,7 +358,17 @@ router.get('/exams/:examId', async (req, res) => {
             gt: 0,
           },
         },
-        include: {
+        select: {
+          id: true,
+          status: true,
+          startedAt: true,
+          completedAt: true,
+          totalMarks: true,
+          obtainedMarks: true,
+          percentage: true,
+          isPassed: true,
+          createdAt: true,
+          updatedAt: true,
           user: {
             select: {
               firstName: true,
@@ -538,7 +568,17 @@ router.get('/users/:userId', async (req, res) => {
         where: {
           userId: userId,
         },
-        include: {
+        select: {
+          id: true,
+          status: true,
+          startedAt: true,
+          completedAt: true,
+          totalMarks: true,
+          obtainedMarks: true,
+          percentage: true,
+          isPassed: true,
+          createdAt: true,
+          updatedAt: true,
           exam: {
             select: {
               title: true,
