@@ -48,16 +48,22 @@ app.use((req, res, next) => {
 });
 const io = socketIo(server, {
   cors: {
-    origin: [
-      'https://examinations.ariadelta.af',
-      'https://31.97.70.79:5050',
-      'https://localhost:3000', 
-      'https://localhost:5173',
-      'https://192.168.0.7:3000', 
-      'https://127.0.0.1:3000',
-      'http://localhost:2020',
-      'https://31.97.70.79:2021'
-    ],
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      
+      // Log all incoming origins for debugging
+      console.log('🔌 WebSocket CORS request from origin:', origin);
+      console.log('✅ Allowed WebSocket origins:', allowedOrigins);
+      
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        console.log('✅ WebSocket CORS allowed for origin:', origin);
+        callback(null, true);
+      } else {
+        console.log('🚫 WebSocket CORS blocked origin:', origin);
+        callback(new Error('Not allowed by WebSocket CORS'));
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
   }
@@ -78,10 +84,14 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-// CORS configuration
+// CORS configuration - More permissive for development
 const allowedOrigins = process.env.NODE_ENV === 'production' 
   ? [
-      'https://examinations.ariadelta.79:2021'
+      'https://examinations.ariadelta.af',
+      'https://31.97.70.79:5050',
+      'https://31.97.70.79:2021',
+      'https://31.97.70.79:3000',
+      'https://31.97.70.79:5173'
     ]
   : [
       'http://localhost:3000', 
@@ -90,8 +100,15 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
       'http://127.0.0.1:3000',
       'https://31.97.70.79:5050',
       'http://31.97.70.79:5050',
+      'https://31.97.70.79:3000',
+      'http://31.97.70.79:3000',
+      'https://31.97.70.79:5173',
+      'http://31.97.70.79:5173',
       'http://localhost:2020',
-      'https://31.97.70.79:2021'
+      'https://31.97.70.79:2021',
+      // Add any other origins you might be using
+      'http://31.97.70.79:2020',
+      'https://31.97.70.79:2020'
     ];
 
 app.use(cors({
@@ -107,18 +124,31 @@ app.use(cors({
       console.log('✅ CORS allowed for origin:', origin);
       callback(null, true);
     } else {
-      console.log('🚫 CORS blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
+      // For development, be more permissive
+      if (process.env.NODE_ENV === 'development') {
+        console.log('⚠️ Development mode: Allowing blocked origin:', origin);
+        callback(null, true);
+      } else {
+        console.log('🚫 CORS blocked origin:', origin);
+        callback(new Error('Not allowed by CORS'));
+      }
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Origin', 'Accept'],
   exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
 
-// Handle preflight requests explicitly
-app.options('*', cors());
+// Handle preflight requests explicitly with more comprehensive CORS
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Origin, Accept');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400'); // 24 hours
+  res.status(200).end();
+});
 
 // Rate limiting - Development-friendly configuration
 const limiter = rateLimit({
@@ -213,6 +243,21 @@ app.get('/health', async (req, res) => {
       error: error.message
     });
   }
+});
+
+// Debug endpoint to check CORS and request details
+app.get('/debug/cors', (req, res) => {
+  res.json({
+    message: 'CORS Debug Info',
+    timestamp: new Date().toISOString(),
+    headers: req.headers,
+    origin: req.headers.origin,
+    referer: req.headers.referer,
+    host: req.headers.host,
+    'user-agent': req.headers['user-agent'],
+    allowedOrigins: allowedOrigins,
+    nodeEnv: process.env.NODE_ENV
+  });
 });
 
 // WebSocket event handlers
