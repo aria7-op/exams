@@ -21,6 +21,7 @@ class QuestionService {
         remark,
         tableData,
         answerSections,
+        enhancedSections,
         options,
         images = []
       } = questionData;
@@ -47,12 +48,15 @@ class QuestionService {
         remark,
         tableData,
         answerSections,
+        enhancedSections,
         createdBy,
         updatedAt: new Date()
       };
 
       // Add options for question types that need them
       if (options && Array.isArray(options) && options.length > 0) {
+        console.log('🔍 DEBUG: Processing options for question type:', type);
+        console.log('🔍 DEBUG: Options received:', JSON.stringify(options, null, 2));
         // For essay questions, store the correct answer as an option with isCorrect: true
         if (type === 'ESSAY') {
           // For essay questions, the first option should be the correct answer
@@ -116,6 +120,15 @@ class QuestionService {
                 sortOrder: option.sortOrder || index
               }))
             };
+          } else if (type === 'TRUE_FALSE' && options.length > 0) {
+            // For TRUE_FALSE questions, store True and False options
+            questionCreateData.options = {
+              create: options.map((option, index) => ({
+                text: option.text,
+                isCorrect: option.isCorrect,
+                sortOrder: option.sortOrder || index
+              }))
+            };
           } else {
             questionCreateData.options = {
               create: options.map(option => ({
@@ -124,6 +137,11 @@ class QuestionService {
               }))
             };
           }
+        }
+        
+        // Debug logging for final options
+        if (questionCreateData.options) {
+          console.log('🔍 DEBUG: Final options to be saved:', JSON.stringify(questionCreateData.options, null, 2));
         }
       }
 

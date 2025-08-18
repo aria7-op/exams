@@ -357,6 +357,7 @@ class ExamService {
           remark: true,
           tableData: true,
           answerSections: true,
+          enhancedSections: true,
           options: {
             select: {
               id: true,

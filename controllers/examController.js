@@ -250,6 +250,7 @@ class ExamController {
             remark: q.remark,
             tableData: q.tableData,
             answerSections: q.answerSections,
+            enhancedSections: q.enhancedSections,
             options: q.options?.map(opt => {
               const baseOption = {
                 id: opt.id,

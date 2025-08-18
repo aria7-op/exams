@@ -385,6 +385,7 @@ class QuestionRandomizationService {
         remark: true,
         tableData: true,
         answerSections: true,
+        enhancedSections: true,
         createdAt: true,
         updatedAt: true,
         options: {
