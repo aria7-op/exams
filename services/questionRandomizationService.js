@@ -78,15 +78,17 @@ class QuestionRandomizationService {
       overlapPercentage = 10.0,
       // Question type distribution
       essayQuestionsCount = 0,
+      singleChoiceQuestionsCount = 0,
       multipleChoiceQuestionsCount = 0,
       shortAnswerQuestionsCount = 0,
       fillInTheBlankQuestionsCount = 0,
       trueFalseQuestionsCount = 0,
       matchingQuestionsCount = 0,
       orderingQuestionsCount = 0,
-              accountingTableQuestionsCount = 0,
-        compoundChoiceQuestionsCount = 0,
-        enhancedCompoundQuestionsCount = 0
+      accountingTableQuestionsCount = 0,
+      compoundChoiceQuestionsCount = 0,
+      enhancedCompoundQuestionsCount = 0,
+      dropdownSelectQuestionsCount = 0
     } = params;
 
     try {
@@ -130,6 +132,7 @@ class QuestionRandomizationService {
         questionsByType,
         {
           essayQuestionsCount,
+          singleChoiceQuestionsCount,
           multipleChoiceQuestionsCount,
           shortAnswerQuestionsCount,
           fillInTheBlankQuestionsCount,
@@ -138,7 +141,8 @@ class QuestionRandomizationService {
           orderingQuestionsCount,
           accountingTableQuestionsCount,
           compoundChoiceQuestionsCount,
-          enhancedCompoundQuestionsCount
+          enhancedCompoundQuestionsCount,
+          dropdownSelectQuestionsCount
         },
         userId,
         overlapPercentage
@@ -152,6 +156,7 @@ class QuestionRandomizationService {
         }, {}),
         requestedDistribution: {
           essay: essayQuestionsCount,
+          singleChoice: singleChoiceQuestionsCount,
           multipleChoice: multipleChoiceQuestionsCount,
           shortAnswer: shortAnswerQuestionsCount,
           fillInTheBlank: fillInTheBlankQuestionsCount,
@@ -160,12 +165,14 @@ class QuestionRandomizationService {
           ordering: orderingQuestionsCount,
           accountingTable: accountingTableQuestionsCount,
           compoundChoice: compoundChoiceQuestionsCount,
-          enhancedCompound: enhancedCompoundQuestionsCount
+          enhancedCompound: enhancedCompoundQuestionsCount,
+          dropdownSelect: dropdownSelectQuestionsCount
         }
       });
 
       // Check if we have a specific question type distribution
       const hasTypeDistribution = essayQuestionsCount > 0 || 
+                                 singleChoiceQuestionsCount > 0 ||
                                  multipleChoiceQuestionsCount > 0 || 
                                  shortAnswerQuestionsCount > 0 || 
                                  fillInTheBlankQuestionsCount > 0 || 
@@ -174,15 +181,16 @@ class QuestionRandomizationService {
                                  orderingQuestionsCount > 0 ||
                                  accountingTableQuestionsCount > 0 ||
                                  compoundChoiceQuestionsCount > 0 ||
-                                 enhancedCompoundQuestionsCount > 0;
+                                 enhancedCompoundQuestionsCount > 0 ||
+                                 dropdownSelectQuestionsCount > 0;
 
       if (hasTypeDistribution && selectedQuestions.length > 0) {
         // Verify we got the expected total count
-              const expectedTotal = essayQuestionsCount + multipleChoiceQuestionsCount + 
+              const expectedTotal = essayQuestionsCount + singleChoiceQuestionsCount + multipleChoiceQuestionsCount + 
                            shortAnswerQuestionsCount + fillInTheBlankQuestionsCount + 
                            trueFalseQuestionsCount + matchingQuestionsCount + 
                            orderingQuestionsCount + accountingTableQuestionsCount + 
-                           compoundChoiceQuestionsCount + enhancedCompoundQuestionsCount;
+                           compoundChoiceQuestionsCount + enhancedCompoundQuestionsCount + dropdownSelectQuestionsCount;
         
         if (selectedQuestions.length !== expectedTotal) {
           logger.warn(`⚠️ Question count mismatch! Expected ${expectedTotal}, got ${selectedQuestions.length}`);
@@ -196,6 +204,7 @@ class QuestionRandomizationService {
           
           logger.warn('📊 Actual vs Expected Distribution:', {
             essay: { expected: essayQuestionsCount, actual: actualDistribution['ESSAY'] || 0 },
+            singleChoice: { expected: singleChoiceQuestionsCount, actual: actualDistribution['SINGLE_CHOICE'] || 0 },
             multipleChoice: { expected: multipleChoiceQuestionsCount, actual: actualDistribution['MULTIPLE_CHOICE'] || 0 },
             shortAnswer: { expected: shortAnswerQuestionsCount, actual: actualDistribution['SHORT_ANSWER'] || 0 },
             fillInTheBlank: { expected: fillInTheBlankQuestionsCount, actual: actualDistribution['FILL_IN_THE_BLANK'] || 0 },
@@ -204,7 +213,8 @@ class QuestionRandomizationService {
             ordering: { expected: orderingQuestionsCount, actual: actualDistribution['ORDERING'] || 0 },
             accountingTable: { expected: accountingTableQuestionsCount, actual: actualDistribution['ACCOUNTING_TABLE'] || 0 },
             compoundChoice: { expected: compoundChoiceQuestionsCount, actual: actualDistribution['COMPOUND_CHOICE'] || 0 },
-            enhancedCompound: { expected: enhancedCompoundQuestionsCount, actual: actualDistribution['ENHANCED_COMPOUND'] || 0 }
+            enhancedCompound: { expected: enhancedCompoundQuestionsCount, actual: actualDistribution['ENHANCED_COMPOUND'] || 0 },
+            dropdownSelect: { expected: dropdownSelectQuestionsCount, actual: actualDistribution['DROPDOWN_SELECT'] || 0 }
           });
           
           // CRITICAL: Try to fill missing questions with fallback selection
@@ -214,6 +224,7 @@ class QuestionRandomizationService {
             questionsByType,
             {
               essayQuestionsCount,
+              singleChoiceQuestionsCount,
               multipleChoiceQuestionsCount,
               shortAnswerQuestionsCount,
               fillInTheBlankQuestionsCount,
@@ -222,7 +233,8 @@ class QuestionRandomizationService {
               orderingQuestionsCount,
               accountingTableQuestionsCount,
               compoundChoiceQuestionsCount,
-              enhancedCompoundQuestionsCount
+              enhancedCompoundQuestionsCount,
+              dropdownSelectQuestionsCount
             },
             actualDistribution,
             userId,
