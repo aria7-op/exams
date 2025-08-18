@@ -872,6 +872,87 @@ class ExamController {
       });
     }
   }
+
+  /**
+   * Get questions for a specific exam
+   */
+  async getExamQuestions(req, res) {
+    try {
+      const { examId } = req.params;
+      const userId = req.user.id;
+
+      // Get the exam to verify it exists and user has access
+      const exam = await prisma.exam.findUnique({
+        where: { id: examId },
+        include: {
+          examCategory: true,
+          examQuestions: {
+            include: {
+              question: {
+                include: {
+                  tags: true,
+                  category: true
+                }
+              }
+            },
+            orderBy: {
+              order: 'asc'
+            }
+          }
+        }
+      });
+
+      if (!exam) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            message: 'Exam not found'
+          }
+        });
+      }
+
+      // Check if user has access to this exam (must be active and public)
+      if (!exam.isActive || !exam.isPublic) {
+        return res.status(403).json({
+          success: false,
+          error: {
+            message: 'Access denied to this exam'
+          }
+        });
+      }
+
+      // Return the questions
+      res.status(200).json({
+        success: true,
+        data: {
+          exam: {
+            id: exam.id,
+            title: exam.title,
+            description: exam.description,
+            examCategory: exam.examCategory
+          },
+          questions: exam.examQuestions.map(eq => ({
+            id: eq.question.id,
+            text: eq.question.text,
+            type: eq.question.type,
+            difficulty: eq.question.difficulty,
+            points: eq.points,
+            order: eq.order,
+            tags: eq.question.tags,
+            category: eq.question.category
+          }))
+        }
+      });
+    } catch (error) {
+      logger.error('Get exam questions failed', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          message: 'Failed to get exam questions'
+        }
+      });
+    }
+  }
 }
 
 module.exports = new ExamController(); 

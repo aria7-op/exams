@@ -23,6 +23,7 @@ router.get('/recommendations', examController.getExamRecommendations);
 
 // Exam-specific routes
 router.get('/:examId', examController.getExamDetails);
+router.get('/:examId/questions', examController.getExamQuestions);
 
 // Exam attempts (student only)
 router.use(studentOnly);
