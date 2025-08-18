@@ -218,7 +218,6 @@ model Exam {
   
   // Question type distribution
   essayQuestionsCount       Int?           @default(0) @map("essay_questions_count")
-  singleChoiceQuestionsCount Int?          @default(0) @map("single_choice_questions_count")
   multipleChoiceQuestionsCount Int?        @default(0) @map("multiple_choice_questions_count")
   shortAnswerQuestionsCount Int?           @default(0) @map("short_answer_questions_count")
   fillInTheBlankQuestionsCount Int?        @default(0) @map("fill_in_the_blank_questions_count")
@@ -228,6 +227,8 @@ model Exam {
   accountingTableQuestionsCount Int?       @default(0) @map("accounting_table_questions_count")
   compoundChoiceQuestionsCount Int?        @default(0) @map("compound_choice_questions_count")
   enhancedCompoundQuestionsCount Int?      @default(0) @map("enhanced_compound_questions_count")
+  singleChoiceQuestionsCount Int?          @default(0) @map("single_choice_questions_count")
+  dropdownSelectQuestionsCount Int?        @default(0) @map("dropdown_select_questions_count")
   
   certificates              Certificate[]
   attempts                  ExamAttempt[]
@@ -747,6 +748,7 @@ enum QuestionType {
   ACCOUNTING_TABLE
   COMPOUND_CHOICE
   ENHANCED_COMPOUND
+  DROPDOWN_SELECT
 }
 
 enum QuestionDifficulty {

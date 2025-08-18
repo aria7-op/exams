@@ -78,7 +78,6 @@ class QuestionRandomizationService {
       overlapPercentage = 10.0,
       // Question type distribution
       essayQuestionsCount = 0,
-      singleChoiceQuestionsCount = 0,
       multipleChoiceQuestionsCount = 0,
       shortAnswerQuestionsCount = 0,
       fillInTheBlankQuestionsCount = 0,
@@ -131,7 +130,6 @@ class QuestionRandomizationService {
         questionsByType,
         {
           essayQuestionsCount,
-          singleChoiceQuestionsCount,
           multipleChoiceQuestionsCount,
           shortAnswerQuestionsCount,
           fillInTheBlankQuestionsCount,
@@ -154,7 +152,6 @@ class QuestionRandomizationService {
         }, {}),
         requestedDistribution: {
           essay: essayQuestionsCount,
-          singleChoice: singleChoiceQuestionsCount,
           multipleChoice: multipleChoiceQuestionsCount,
           shortAnswer: shortAnswerQuestionsCount,
           fillInTheBlank: fillInTheBlankQuestionsCount,
@@ -169,7 +166,6 @@ class QuestionRandomizationService {
 
       // Check if we have a specific question type distribution
       const hasTypeDistribution = essayQuestionsCount > 0 || 
-                                 singleChoiceQuestionsCount > 0 ||
                                  multipleChoiceQuestionsCount > 0 || 
                                  shortAnswerQuestionsCount > 0 || 
                                  fillInTheBlankQuestionsCount > 0 || 
@@ -182,7 +178,7 @@ class QuestionRandomizationService {
 
       if (hasTypeDistribution && selectedQuestions.length > 0) {
         // Verify we got the expected total count
-              const expectedTotal = essayQuestionsCount + singleChoiceQuestionsCount + multipleChoiceQuestionsCount + 
+              const expectedTotal = essayQuestionsCount + multipleChoiceQuestionsCount + 
                            shortAnswerQuestionsCount + fillInTheBlankQuestionsCount + 
                            trueFalseQuestionsCount + matchingQuestionsCount + 
                            orderingQuestionsCount + accountingTableQuestionsCount + 
@@ -200,7 +196,6 @@ class QuestionRandomizationService {
           
           logger.warn('📊 Actual vs Expected Distribution:', {
             essay: { expected: essayQuestionsCount, actual: actualDistribution['ESSAY'] || 0 },
-            singleChoice: { expected: singleChoiceQuestionsCount, actual: actualDistribution['SINGLE_CHOICE'] || 0 },
             multipleChoice: { expected: multipleChoiceQuestionsCount, actual: actualDistribution['MULTIPLE_CHOICE'] || 0 },
             shortAnswer: { expected: shortAnswerQuestionsCount, actual: actualDistribution['SHORT_ANSWER'] || 0 },
             fillInTheBlank: { expected: fillInTheBlankQuestionsCount, actual: actualDistribution['FILL_IN_THE_BLANK'] || 0 },
@@ -219,7 +214,6 @@ class QuestionRandomizationService {
             questionsByType,
             {
               essayQuestionsCount,
-              singleChoiceQuestionsCount,
               multipleChoiceQuestionsCount,
               shortAnswerQuestionsCount,
               fillInTheBlankQuestionsCount,
@@ -392,17 +386,46 @@ class QuestionRandomizationService {
       where: {
         examCategoryId,
         isActive: true
+        // Temporarily removed isPublic and approvedBy requirements for testing
       },
-      include: {
+      select: {
+        id: true,
+        text: true,
+        type: true,
+        difficulty: true,
+        marks: true,
+        timeLimit: true,
+        remark: true,
+        tableData: true,
+        answerSections: true,
+        enhancedSections: true,
+        createdAt: true,
+        updatedAt: true,
         options: {
-          select: { id: true, text: true, isCorrect: true, sortOrder: true, createdAt: true },
+          select: {
+            id: true,
+            text: true,
+            isCorrect: true,
+            sortOrder: true,
+            createdAt: true
+          },
           orderBy: { sortOrder: 'asc' }
         },
         images: {
-          select: { id: true, imageUrl: true, altText: true, sortOrder: true },
+          select: {
+            id: true,
+            imageUrl: true,
+            altText: true,
+            sortOrder: true
+          },
           orderBy: { sortOrder: 'asc' }
         },
-        tags: { select: { id: true, tag: true } }
+        tags: {
+          select: {
+            id: true,
+            tag: true
+          }
+        }
       },
       orderBy: [
         { usageCount: 'asc' },
@@ -1764,7 +1787,8 @@ class QuestionRandomizationService {
       { type: 'ORDERING', count: distribution.orderingQuestionsCount },
       { type: 'ACCOUNTING_TABLE', count: distribution.accountingTableQuestionsCount },
       { type: 'COMPOUND_CHOICE', count: distribution.compoundChoiceQuestionsCount },
-      { type: 'ENHANCED_COMPOUND', count: distribution.enhancedCompoundQuestionsCount }
+      { type: 'ENHANCED_COMPOUND', count: distribution.enhancedCompoundQuestionsCount },
+      { type: 'DROPDOWN_SELECT', count: distribution.dropdownSelectQuestionsCount || 0 }
     ];
 
     // First, check if we have enough questions for each type
@@ -1858,7 +1882,6 @@ class QuestionRandomizationService {
     logger.info('🎯 Final question distribution achieved:', finalDistribution);
     logger.info('📊 Distribution verification:', {
       essay: { requested: distribution.essayQuestionsCount, actual: finalDistribution['ESSAY'] || 0 },
-      singleChoice: { requested: distribution.singleChoiceQuestionsCount, actual: finalDistribution['SINGLE_CHOICE'] || 0 },
       multipleChoice: { requested: distribution.multipleChoiceQuestionsCount, actual: finalDistribution['MULTIPLE_CHOICE'] || 0 },
       shortAnswer: { requested: distribution.shortAnswerQuestionsCount, actual: finalDistribution['SHORT_ANSWER'] || 0 },
       fillInTheBlank: { requested: distribution.fillInTheBlankQuestionsCount, actual: finalDistribution['FILL_IN_THE_BLANK'] || 0 },
@@ -1870,26 +1893,10 @@ class QuestionRandomizationService {
       enhancedCompound: { requested: distribution.enhancedCompoundQuestionsCount, actual: finalDistribution['ENHANCED_COMPOUND'] || 0 }
     });
 
-    // CRITICAL: Ensure we have the exact distribution requested (use explicit mapping)
-    const distributionKeyToType = {
-      essayQuestionsCount: 'ESSAY',
-      singleChoiceQuestionsCount: 'SINGLE_CHOICE',
-      multipleChoiceQuestionsCount: 'MULTIPLE_CHOICE',
-      shortAnswerQuestionsCount: 'SHORT_ANSWER',
-      fillInTheBlankQuestionsCount: 'FILL_IN_THE_BLANK',
-      trueFalseQuestionsCount: 'TRUE_FALSE',
-      matchingQuestionsCount: 'MATCHING',
-      orderingQuestionsCount: 'ORDERING',
-      accountingTableQuestionsCount: 'ACCOUNTING_TABLE',
-      compoundChoiceQuestionsCount: 'COMPOUND_CHOICE',
-      enhancedCompoundQuestionsCount: 'ENHANCED_COMPOUND'
-    };
-
+    // CRITICAL: Ensure we have the exact distribution requested
     const hasExactDistribution = Object.entries(distribution).every(([key, requestedCount]) => {
-      if (!distributionKeyToType[key]) return true; // ignore non-type keys
       if (requestedCount === 0) return true;
-      const type = distributionKeyToType[key];
-      const actualCount = finalDistribution[type] || 0;
+      const actualCount = finalDistribution[key.replace('QuestionsCount', '').toUpperCase()] || 0;
       return actualCount === requestedCount;
     });
 
@@ -1897,7 +1904,6 @@ class QuestionRandomizationService {
       logger.error('❌ CRITICAL: Question distribution mismatch detected!');
       logger.error('Expected vs Actual:', {
         essay: { expected: distribution.essayQuestionsCount, actual: finalDistribution['ESSAY'] || 0 },
-        singleChoice: { expected: distribution.singleChoiceQuestionsCount, actual: finalDistribution['SINGLE_CHOICE'] || 0 },
         multipleChoice: { expected: distribution.multipleChoiceQuestionsCount, actual: finalDistribution['MULTIPLE_CHOICE'] || 0 },
         shortAnswer: { expected: distribution.shortAnswerQuestionsCount, actual: finalDistribution['SHORT_ANSWER'] || 0 },
         fillInTheBlank: { expected: distribution.fillInTheBlankQuestionsCount, actual: finalDistribution['FILL_IN_THE_BLANK'] || 0 },
