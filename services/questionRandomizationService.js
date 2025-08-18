@@ -118,7 +118,10 @@ class QuestionRandomizationService {
         fillInTheBlank: questionsByType.FILL_IN_THE_BLANK?.length || 0,
         trueFalse: questionsByType.TRUE_FALSE?.length || 0,
         matching: questionsByType.MATCHING?.length || 0,
-        ordering: questionsByType.ORDERING?.length || 0
+        ordering: questionsByType.ORDERING?.length || 0,
+        accountingTable: questionsByType.ACCOUNTING_TABLE?.length || 0,
+        compoundChoice: questionsByType.COMPOUND_CHOICE?.length || 0,
+        enhancedCompound: questionsByType.ENHANCED_COMPOUND?.length || 0
       });
 
       // Select questions based on type distribution
@@ -163,7 +166,8 @@ class QuestionRandomizationService {
                                  matchingQuestionsCount > 0 || 
                                  orderingQuestionsCount > 0 ||
                                  accountingTableQuestionsCount > 0 ||
-                                 compoundChoiceQuestionsCount > 0;
+                                 compoundChoiceQuestionsCount > 0 ||
+                                 enhancedCompoundQuestionsCount > 0;
 
       if (hasTypeDistribution && selectedQuestions.length > 0) {
         // Verify we got the expected total count
@@ -192,7 +196,8 @@ class QuestionRandomizationService {
             matching: { expected: matchingQuestionsCount, actual: actualDistribution['MATCHING'] || 0 },
             ordering: { expected: orderingQuestionsCount, actual: actualDistribution['ORDERING'] || 0 },
             accountingTable: { expected: accountingTableQuestionsCount, actual: actualDistribution['ACCOUNTING_TABLE'] || 0 },
-            compoundChoice: { expected: compoundChoiceQuestionsCount, actual: actualDistribution['COMPOUND_CHOICE'] || 0 }
+            compoundChoice: { expected: compoundChoiceQuestionsCount, actual: actualDistribution['COMPOUND_CHOICE'] || 0 },
+            enhancedCompound: { expected: enhancedCompoundQuestionsCount, actual: actualDistribution['ENHANCED_COMPOUND'] || 0 }
           });
           
           // CRITICAL: Try to fill missing questions with fallback selection
@@ -209,7 +214,8 @@ class QuestionRandomizationService {
               matchingQuestionsCount,
               orderingQuestionsCount,
               accountingTableQuestionsCount,
-              compoundChoiceQuestionsCount
+              compoundChoiceQuestionsCount,
+              enhancedCompoundQuestionsCount
             },
             actualDistribution,
             userId,
@@ -1772,7 +1778,8 @@ class QuestionRandomizationService {
       { type: 'MATCHING', count: distribution.matchingQuestionsCount },
       { type: 'ORDERING', count: distribution.orderingQuestionsCount },
       { type: 'ACCOUNTING_TABLE', count: distribution.accountingTableQuestionsCount },
-      { type: 'COMPOUND_CHOICE', count: distribution.compoundChoiceQuestionsCount }
+      { type: 'COMPOUND_CHOICE', count: distribution.compoundChoiceQuestionsCount },
+      { type: 'ENHANCED_COMPOUND', count: distribution.enhancedCompoundQuestionsCount }
     ];
 
     // First, check if we have enough questions for each type

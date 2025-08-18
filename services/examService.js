@@ -347,17 +347,7 @@ class ExamService {
           isActive: true,
           isPublic: true
         },
-        select: {
-          id: true,
-          text: true,
-          type: true,
-          difficulty: true,
-          marks: true,
-          timeLimit: true,
-          remark: true,
-          tableData: true,
-          answerSections: true,
-          enhancedSections: true,
+        include: {
           options: {
             select: {
               id: true,
@@ -365,13 +355,7 @@ class ExamService {
               isCorrect: true
             }
           },
-          images: {
-            select: {
-              id: true,
-              imageUrl: true,
-              altText: true
-            }
-          }
+          images: true
         },
         orderBy: { createdAt: 'desc' }
       });
@@ -549,28 +533,6 @@ class ExamService {
         });
       }
 
-      // Handle foreign key fields -> relation updates
-      if (processedData.examCategoryId) {
-        processedData.examCategory = {
-          connect: { id: processedData.examCategoryId }
-        };
-        delete processedData.examCategoryId;
-      }
-
-      if (processedData.createdBy) {
-        processedData.creator = {
-          connect: { id: processedData.createdBy }
-        };
-        delete processedData.createdBy;
-      }
-
-      if (processedData.approvedBy) {
-        processedData.approver = {
-          connect: { id: processedData.approvedBy }
-        };
-        delete processedData.approvedBy;
-      }
-
       // Add updatedAt timestamp
       processedData.updatedAt = new Date();
 
@@ -738,7 +700,8 @@ class ExamService {
         matchingQuestionsCount: exam.matchingQuestionsCount || 0,
         orderingQuestionsCount: exam.orderingQuestionsCount || 0,
         accountingTableQuestionsCount: exam.accountingTableQuestionsCount || 0,
-        compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0
+        compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0,
+        enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0
       });
       
       logger.info('Questions generated with distribution', {
@@ -805,7 +768,8 @@ class ExamService {
           matchingQuestionsCount: exam.matchingQuestionsCount || 0,
           orderingQuestionsCount: exam.orderingQuestionsCount || 0,
           accountingTableQuestionsCount: exam.accountingTableQuestionsCount || 0,
-          compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0
+          compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0,
+          enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0
         }
       };
     } catch (error) {
