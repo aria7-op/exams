@@ -911,12 +911,30 @@ class ExamController {
         });
       }
 
-      // Check if user has access to this exam (must be active and public)
-      if (!exam.isActive || !exam.isPublic) {
+      // Check if exam is active
+      if (!exam.isActive) {
         return res.status(403).json({
           success: false,
           error: {
-            message: 'Access denied to this exam'
+            message: 'Exam is not active'
+          }
+        });
+      }
+
+      // Check if user has access to this exam (either public or has a valid booking)
+      const hasBooking = await prisma.examBooking.findFirst({
+        where: {
+          userId: userId,
+          examId: examId,
+          status: 'CONFIRMED'
+        }
+      });
+
+      if (!exam.isPublic && !hasBooking) {
+        return res.status(403).json({
+          success: false,
+          error: {
+            message: 'Access denied to this exam. You need a valid booking to access private exams.'
           }
         });
       }
