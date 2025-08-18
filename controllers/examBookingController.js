@@ -133,7 +133,20 @@ class ExamBookingController {
             userId,
             questionCount,
             examCategoryId: exam.examCategoryId,
-            overlapPercentage: exam.questionOverlapPercentage
+            overlapPercentage: exam.questionOverlapPercentage,
+            // Pass the exact question type distribution from the exam
+            essayQuestionsCount: exam.essayQuestionsCount || 0,
+            singleChoiceQuestionsCount: exam.singleChoiceQuestionsCount || 0,
+            multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
+            shortAnswerQuestionsCount: exam.shortAnswerQuestionsCount || 0,
+            fillInTheBlankQuestionsCount: exam.fillInTheBlankQuestionsCount || 0,
+            trueFalseQuestionsCount: exam.trueFalseQuestionsCount || 0,
+            matchingQuestionsCount: exam.matchingQuestionsCount || 0,
+            orderingQuestionsCount: exam.orderingQuestionsCount || 0,
+            accountingTableQuestionsCount: exam.accountingTableQuestionsCount || 0,
+            compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0,
+            enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0,
+            dropdownSelectQuestionsCount: exam.dropdownSelectQuestionsCount || 0
           });
 
           if (!randomizedQuestions || randomizedQuestions.length === 0) {

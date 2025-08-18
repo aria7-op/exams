@@ -702,7 +702,8 @@ class ExamService {
         orderingQuestionsCount: exam.orderingQuestionsCount || 0,
         accountingTableQuestionsCount: exam.accountingTableQuestionsCount || 0,
         compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0,
-        enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0
+        enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0,
+        dropdownSelectQuestionsCount: exam.dropdownSelectQuestionsCount || 0
       });
       
       logger.info('Questions generated with distribution', {
@@ -771,7 +772,8 @@ class ExamService {
           orderingQuestionsCount: exam.orderingQuestionsCount || 0,
           accountingTableQuestionsCount: exam.accountingTableQuestionsCount || 0,
           compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0,
-          enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0
+          enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0,
+          dropdownSelectQuestionsCount: exam.dropdownSelectQuestionsCount || 0
         }
       };
     } catch (error) {
