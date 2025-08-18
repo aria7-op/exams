@@ -392,46 +392,17 @@ class QuestionRandomizationService {
       where: {
         examCategoryId,
         isActive: true
-        // Temporarily removed isPublic and approvedBy requirements for testing
       },
-      select: {
-        id: true,
-        text: true,
-        type: true,
-        difficulty: true,
-        marks: true,
-        timeLimit: true,
-        remark: true,
-        tableData: true,
-        answerSections: true,
-        enhancedSections: true,
-        createdAt: true,
-        updatedAt: true,
+      include: {
         options: {
-          select: {
-            id: true,
-            text: true,
-            isCorrect: true,
-            sortOrder: true,
-            createdAt: true
-          },
+          select: { id: true, text: true, isCorrect: true, sortOrder: true, createdAt: true },
           orderBy: { sortOrder: 'asc' }
         },
         images: {
-          select: {
-            id: true,
-            imageUrl: true,
-            altText: true,
-            sortOrder: true
-          },
+          select: { id: true, imageUrl: true, altText: true, sortOrder: true },
           orderBy: { sortOrder: 'asc' }
         },
-        tags: {
-          select: {
-            id: true,
-            tag: true
-          }
-        }
+        tags: { select: { id: true, tag: true } }
       },
       orderBy: [
         { usageCount: 'asc' },
