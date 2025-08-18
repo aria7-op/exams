@@ -935,11 +935,7 @@ class ExamController {
                   exam_categories: true,
                   options: {
                     orderBy: { sortOrder: 'asc' }
-                  },
-                  // Include enhanced question type fields
-                  enhancedSections: true,
-                  tableData: true,
-                  answerSections: true
+                  }
                 }
               }
             },
