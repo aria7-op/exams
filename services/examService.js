@@ -639,7 +639,30 @@ class ExamService {
     try {
       const exam = await prisma.exam.findUnique({
         where: { id: examId },
-        include: {
+        select: {
+          id: true,
+          title: true,
+          duration: true,
+          totalQuestions: true,
+          questionOverlapPercentage: true,
+          examCategoryId: true,
+          isActive: true,
+          maxRetakes: true,
+          instructions: true,
+          rules: true,
+          // Question type distribution fields
+          essayQuestionsCount: true,
+          singleChoiceQuestionsCount: true,
+          multipleChoiceQuestionsCount: true,
+          shortAnswerQuestionsCount: true,
+          fillInTheBlankQuestionsCount: true,
+          trueFalseQuestionsCount: true,
+          matchingQuestionsCount: true,
+          orderingQuestionsCount: true,
+          accountingTableQuestionsCount: true,
+          compoundChoiceQuestionsCount: true,
+          enhancedCompoundQuestionsCount: true,
+          dropdownSelectQuestionsCount: true,
           examCategory: true
         }
       });
