@@ -1894,6 +1894,7 @@ class QuestionRandomizationService {
     logger.info('🎯 Final question distribution achieved:', finalDistribution);
     logger.info('📊 Distribution verification:', {
       essay: { requested: distribution.essayQuestionsCount, actual: finalDistribution['ESSAY'] || 0 },
+      singleChoice: { requested: distribution.singleChoiceQuestionsCount, actual: finalDistribution['SINGLE_CHOICE'] || 0 },
       multipleChoice: { requested: distribution.multipleChoiceQuestionsCount, actual: finalDistribution['MULTIPLE_CHOICE'] || 0 },
       shortAnswer: { requested: distribution.shortAnswerQuestionsCount, actual: finalDistribution['SHORT_ANSWER'] || 0 },
       fillInTheBlank: { requested: distribution.fillInTheBlankQuestionsCount, actual: finalDistribution['FILL_IN_THE_BLANK'] || 0 },
@@ -1902,7 +1903,8 @@ class QuestionRandomizationService {
       ordering: { requested: distribution.orderingQuestionsCount, actual: finalDistribution['ORDERING'] || 0 },
       accountingTable: { requested: distribution.accountingTableQuestionsCount, actual: finalDistribution['ACCOUNTING_TABLE'] || 0 },
       compoundChoice: { requested: distribution.compoundChoiceQuestionsCount, actual: finalDistribution['COMPOUND_CHOICE'] || 0 },
-      enhancedCompound: { requested: distribution.enhancedCompoundQuestionsCount, actual: finalDistribution['ENHANCED_COMPOUND'] || 0 }
+      enhancedCompound: { requested: distribution.enhancedCompoundQuestionsCount, actual: finalDistribution['ENHANCED_COMPOUND'] || 0 },
+      dropdownSelect: { requested: distribution.dropdownSelectQuestionsCount, actual: finalDistribution['DROPDOWN_SELECT'] || 0 }
     });
 
     // CRITICAL: Ensure we have the exact distribution requested
@@ -1916,6 +1918,7 @@ class QuestionRandomizationService {
       logger.error('❌ CRITICAL: Question distribution mismatch detected!');
       logger.error('Expected vs Actual:', {
         essay: { expected: distribution.essayQuestionsCount, actual: finalDistribution['ESSAY'] || 0 },
+        singleChoice: { expected: distribution.singleChoiceQuestionsCount, actual: finalDistribution['SINGLE_CHOICE'] || 0 },
         multipleChoice: { expected: distribution.multipleChoiceQuestionsCount, actual: finalDistribution['MULTIPLE_CHOICE'] || 0 },
         shortAnswer: { expected: distribution.shortAnswerQuestionsCount, actual: finalDistribution['SHORT_ANSWER'] || 0 },
         fillInTheBlank: { expected: distribution.fillInTheBlankQuestionsCount, actual: finalDistribution['FILL_IN_THE_BLANK'] || 0 },
@@ -1924,7 +1927,8 @@ class QuestionRandomizationService {
         ordering: { expected: distribution.orderingQuestionsCount, actual: finalDistribution['ORDERING'] || 0 },
         accountingTable: { expected: distribution.accountingTableQuestionsCount, actual: finalDistribution['ACCOUNTING_TABLE'] || 0 },
         compoundChoice: { expected: distribution.compoundChoiceQuestionsCount, actual: finalDistribution['COMPOUND_CHOICE'] || 0 },
-        enhancedCompound: { expected: distribution.enhancedCompoundQuestionsCount, actual: finalDistribution['ENHANCED_COMPOUND'] || 0 }
+        enhancedCompound: { expected: distribution.enhancedCompoundQuestionsCount, actual: finalDistribution['ENHANCED_COMPOUND'] || 0 },
+        dropdownSelect: { expected: distribution.dropdownSelectQuestionsCount, actual: finalDistribution['DROPDOWN_SELECT'] || 0 }
       });
     } else {
       logger.info('✅ SUCCESS: Exact question distribution achieved!');
@@ -1952,7 +1956,8 @@ class QuestionRandomizationService {
       'ORDERING': 'orderingQuestionsCount',
       'ACCOUNTING_TABLE': 'accountingTableQuestionsCount',
       'COMPOUND_CHOICE': 'compoundChoiceQuestionsCount',
-      'ENHANCED_COMPOUND': 'enhancedCompoundQuestionsCount'
+      'ENHANCED_COMPOUND': 'enhancedCompoundQuestionsCount',
+      'DROPDOWN_SELECT': 'dropdownSelectQuestionsCount'
     };
 
     for (const [questionType, distributionKey] of Object.entries(typeMapping)) {
