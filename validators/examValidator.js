@@ -291,6 +291,68 @@ const validateQuestionCreation = (data) => {
         'array.max': 'Maximum 10 answer sections allowed'
       }),
       otherwise: Joi.forbidden()
+    }),
+    enhancedSections: Joi.when('type', {
+      is: 'ENHANCED_COMPOUND',
+      then: Joi.array().items(
+        Joi.object({
+          id: Joi.string().required(),
+          title: Joi.string().min(1).max(200).required(),
+          type: Joi.string().valid('MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'SHORT_ANSWER', 'ESSAY', 'MATCHING', 'ORDERING', 'ACCOUNTING_TABLE', 'COMPOUND_CHOICE').required(),
+          question: Joi.string().min(1).max(1000).required(),
+          marks: Joi.number().integer().min(1).max(100).required(),
+          required: Joi.boolean().default(true),
+          tableData: Joi.when('type', {
+            is: 'ACCOUNTING_TABLE',
+            then: Joi.string().min(1).max(10000).required(),
+            otherwise: Joi.forbidden()
+          }),
+          correctAnswers: Joi.when('type', {
+            is: 'FILL_IN_THE_BLANK',
+            then: Joi.array().items(Joi.string().min(1).max(200)).min(1).max(10).required(),
+            otherwise: Joi.forbidden()
+          }),
+          options: Joi.when('type', {
+            is: Joi.string().valid('MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'TRUE_FALSE', 'ACCOUNTING_TABLE', 'MATCHING', 'ORDERING'),
+            then: Joi.array().items(
+              Joi.object({
+                text: Joi.string().min(1).max(500).required(),
+                isCorrect: Joi.boolean().required(),
+                leftItem: Joi.when('type', {
+                  is: 'MATCHING',
+                  then: Joi.string().min(1).max(500).required(),
+                  otherwise: Joi.forbidden()
+                }),
+                rightItem: Joi.when('type', {
+                  is: 'MATCHING',
+                  then: Joi.string().min(1).max(500).required(),
+                  otherwise: Joi.forbidden()
+                })
+              })
+            ).min(2).max(10).required(),
+            otherwise: Joi.forbidden()
+          }),
+          answerSections: Joi.when('type', {
+            is: 'COMPOUND_CHOICE',
+            then: Joi.array().items(
+              Joi.object({
+                title: Joi.string().min(1).max(200).required(),
+                options: Joi.array().items(
+                  Joi.object({
+                    text: Joi.string().min(1).max(500).required(),
+                    isCorrect: Joi.boolean().required()
+                  })
+                ).min(2).max(10).required()
+              })
+            ).min(1).max(10).required(),
+            otherwise: Joi.forbidden()
+          })
+        })
+      ).min(1).max(20).required().messages({
+        'array.min': 'At least 1 enhanced section is required for enhanced compound questions',
+        'array.max': 'Maximum 20 enhanced sections allowed'
+      }),
+      otherwise: Joi.forbidden()
     })
   });
 

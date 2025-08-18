@@ -102,6 +102,15 @@ class QuestionService {
                 isCorrect: option.isCorrect
               }))
             };
+            
+            // Enhanced compound questions store their complex structure in enhancedSections
+            // The enhancedSections field will contain all the section data including:
+            // - tableData for ACCOUNTING_TABLE sections
+            // - answerSections for COMPOUND_CHOICE sections
+            // - options for all other section types
+            if (enhancedSections && Array.isArray(enhancedSections) && enhancedSections.length > 0) {
+              console.log('🔍 DEBUG: Processing enhancedSections for ENHANCED_COMPOUND question:', JSON.stringify(enhancedSections, null, 2));
+            }
           } else if (type === 'MATCHING' && options.length > 0) {
             // For MATCHING questions, store all options with sortOrder for pairing
             questionCreateData.options = {
