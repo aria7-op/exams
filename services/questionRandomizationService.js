@@ -1776,9 +1776,10 @@ class QuestionRandomizationService {
     const userHistory = userId ? await this.getUserQuestionHistory(userId) : new Map();
     
     // Define the order of selection (priority order)
-                 const typeOrder = [
-               { type: 'ESSAY', count: distribution.essayQuestionsCount },
-               { type: 'MULTIPLE_CHOICE', count: distribution.multipleChoiceQuestionsCount },
+    const typeOrder = [
+      { type: 'ESSAY', count: distribution.essayQuestionsCount },
+      { type: 'SINGLE_CHOICE', count: distribution.singleChoiceQuestionsCount },
+      { type: 'MULTIPLE_CHOICE', count: distribution.multipleChoiceQuestionsCount },
       { type: 'SHORT_ANSWER', count: distribution.shortAnswerQuestionsCount },
       { type: 'FILL_IN_THE_BLANK', count: distribution.fillInTheBlankQuestionsCount },
       { type: 'TRUE_FALSE', count: distribution.trueFalseQuestionsCount },
@@ -1880,6 +1881,7 @@ class QuestionRandomizationService {
     logger.info('🎯 Final question distribution achieved:', finalDistribution);
     logger.info('📊 Distribution verification:', {
       essay: { requested: distribution.essayQuestionsCount, actual: finalDistribution['ESSAY'] || 0 },
+      singleChoice: { requested: distribution.singleChoiceQuestionsCount, actual: finalDistribution['SINGLE_CHOICE'] || 0 },
       multipleChoice: { requested: distribution.multipleChoiceQuestionsCount, actual: finalDistribution['MULTIPLE_CHOICE'] || 0 },
       shortAnswer: { requested: distribution.shortAnswerQuestionsCount, actual: finalDistribution['SHORT_ANSWER'] || 0 },
       fillInTheBlank: { requested: distribution.fillInTheBlankQuestionsCount, actual: finalDistribution['FILL_IN_THE_BLANK'] || 0 },
@@ -1891,10 +1893,26 @@ class QuestionRandomizationService {
       enhancedCompound: { requested: distribution.enhancedCompoundQuestionsCount, actual: finalDistribution['ENHANCED_COMPOUND'] || 0 }
     });
 
-    // CRITICAL: Ensure we have the exact distribution requested
+    // CRITICAL: Ensure we have the exact distribution requested (use explicit mapping)
+    const distributionKeyToType = {
+      essayQuestionsCount: 'ESSAY',
+      singleChoiceQuestionsCount: 'SINGLE_CHOICE',
+      multipleChoiceQuestionsCount: 'MULTIPLE_CHOICE',
+      shortAnswerQuestionsCount: 'SHORT_ANSWER',
+      fillInTheBlankQuestionsCount: 'FILL_IN_THE_BLANK',
+      trueFalseQuestionsCount: 'TRUE_FALSE',
+      matchingQuestionsCount: 'MATCHING',
+      orderingQuestionsCount: 'ORDERING',
+      accountingTableQuestionsCount: 'ACCOUNTING_TABLE',
+      compoundChoiceQuestionsCount: 'COMPOUND_CHOICE',
+      enhancedCompoundQuestionsCount: 'ENHANCED_COMPOUND'
+    };
+
     const hasExactDistribution = Object.entries(distribution).every(([key, requestedCount]) => {
+      if (!distributionKeyToType[key]) return true; // ignore non-type keys
       if (requestedCount === 0) return true;
-      const actualCount = finalDistribution[key.replace('QuestionsCount', '').toUpperCase()] || 0;
+      const type = distributionKeyToType[key];
+      const actualCount = finalDistribution[type] || 0;
       return actualCount === requestedCount;
     });
 
@@ -1902,6 +1920,7 @@ class QuestionRandomizationService {
       logger.error('❌ CRITICAL: Question distribution mismatch detected!');
       logger.error('Expected vs Actual:', {
         essay: { expected: distribution.essayQuestionsCount, actual: finalDistribution['ESSAY'] || 0 },
+        singleChoice: { expected: distribution.singleChoiceQuestionsCount, actual: finalDistribution['SINGLE_CHOICE'] || 0 },
         multipleChoice: { expected: distribution.multipleChoiceQuestionsCount, actual: finalDistribution['MULTIPLE_CHOICE'] || 0 },
         shortAnswer: { expected: distribution.shortAnswerQuestionsCount, actual: finalDistribution['SHORT_ANSWER'] || 0 },
         fillInTheBlank: { expected: distribution.fillInTheBlankQuestionsCount, actual: finalDistribution['FILL_IN_THE_BLANK'] || 0 },

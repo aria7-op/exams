@@ -543,14 +543,18 @@ class AdvancedNotificationService {
         select: { id: true }
       });
 
+      const examTitle = (attemptData && attemptData.exam && attemptData.exam.title) ? attemptData.exam.title : attemptData.examId;
+      const percentageVal = results && typeof results.percentage === 'number' ? results.percentage : 0;
+      const percentageText = (Math.round(percentageVal * 10) / 10).toString();
+
       const notifications = admins.map(admin => this.sendNotification({
         userId: admin.id,
         type: 'EXAM_ATTEMPT_COMPLETED',
         title: '✅ Exam Attempt Completed',
-        message: `User ${attemptData.userId} completed exam "${attemptData.exam?.title || attemptData.examId}" with ${results?.percentage?.toFixed?.(1) ?? results?.percentage || 0}%`,
+        message: `User ${attemptData.userId} completed exam "${examTitle}" with ${percentageText}%`,
         priority: 'high',
         channels: ['websocket', 'database'],
-        data: { attemptId: attemptData.id, examId: attemptData.examId, userId: attemptData.userId, percentage: results?.percentage }
+        data: { attemptId: attemptData.id, examId: attemptData.examId, userId: attemptData.userId, percentage: percentageVal }
       }));
 
       await Promise.all(notifications);
@@ -560,7 +564,7 @@ class AdvancedNotificationService {
           userId: attemptData.userId,
           examId: attemptData.examId,
           attemptId: attemptData.id,
-          percentage: results?.percentage
+          percentage: percentageVal
         });
       }
 
