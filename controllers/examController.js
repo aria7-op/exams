@@ -222,6 +222,20 @@ class ExamController {
         }, {})
       });
 
+      // Notify admins and emit WebSocket event for exam attempt started
+      try {
+        if (global.notificationService && result?.attempt) {
+          await global.notificationService.notifyAdminsExamAttemptStarted({
+            id: result.attempt.id,
+            userId,
+            examId,
+            exam: { title: result?.exam?.title }
+          });
+        }
+      } catch (e) {
+        logger.warn('Failed to notify admins for exam start', e);
+      }
+
       // Emit WebSocket event for exam attempt started
       if (global.io) {
         global.io.to('admin-room').emit('exam-attempt-started', {
@@ -327,6 +341,21 @@ class ExamController {
         return res.status(400).json(result);
       }
 
+      // Admin notification
+      try {
+        if (global.notificationService) {
+          await global.notificationService.notifyAdminsExamAnswerSubmitted({
+            attemptId,
+            userId,
+            questionId,
+            isCorrect: result?.answerResult?.isCorrect,
+            timeSpent
+          });
+        }
+      } catch (e) {
+        logger.warn('Failed to notify admins for answer submitted', e);
+      }
+
       res.status(200).json({
         success: true,
         message: 'Response submitted successfully',
@@ -384,6 +413,15 @@ class ExamController {
 
       if (!result.success) {
         return res.status(400).json(result);
+      }
+
+      // Notify admins and emit WebSocket event for exam attempt completed
+      try {
+        if (global.notificationService) {
+          await global.notificationService.notifyAdminsExamAttemptCompleted(result.attempt, result.results);
+        }
+      } catch (e) {
+        logger.warn('Failed to notify admins for exam completion', e);
       }
 
       // Emit WebSocket event for exam attempt completed
@@ -882,6 +920,9 @@ class ExamController {
       const userId = req.user.id;
 
       // Get the exam to verify it exists and user has access
+      // Debug: Log the query we're about to execute
+      logger.info('🔍 Executing Prisma query for exam questions with enhanced fields');
+      
       const exam = await prisma.exam.findUnique({
         where: { id: examId },
         include: {
@@ -891,7 +932,14 @@ class ExamController {
               question: {
                 include: {
                   tags: true,
-                  exam_categories: true
+                  exam_categories: true,
+                  options: {
+                    orderBy: { sortOrder: 'asc' }
+                  },
+                  // Include enhanced question type fields
+                  enhancedSections: true,
+                  tableData: true,
+                  answerSections: true
                 }
               }
             },
@@ -901,6 +949,19 @@ class ExamController {
           }
         }
       });
+      
+      // Debug: Log what we got back
+      if (exam && exam.questions) {
+        logger.info('🔍 Exam questions query result:', {
+          totalQuestions: exam.questions.length,
+          questionTypes: exam.questions.map(eq => eq.question.type),
+          enhancedQuestions: exam.questions.filter(eq => eq.question.type === 'ENHANCED_COMPOUND').map(eq => ({
+            id: eq.question.id,
+            hasEnhancedSections: !!eq.question.enhancedSections,
+            enhancedSectionsData: eq.question.enhancedSections
+          }))
+        });
+      }
 
       if (!exam) {
         return res.status(404).json({
@@ -939,6 +1000,19 @@ class ExamController {
         });
       }
 
+      // Debug logging for enhanced compound questions
+      const enhancedQuestions = exam.questions.filter(eq => eq.question.type === 'ENHANCED_COMPOUND');
+      if (enhancedQuestions.length > 0) {
+        logger.info('🔍 Found enhanced compound questions:', enhancedQuestions.map(eq => ({
+          id: eq.question.id,
+          type: eq.question.type,
+          enhancedSections: eq.question.enhancedSections,
+          hasEnhancedSections: !!eq.question.enhancedSections,
+          enhancedSectionsType: typeof eq.question.enhancedSections,
+          enhancedSectionsLength: Array.isArray(eq.question.enhancedSections) ? eq.question.enhancedSections.length : 'not array'
+        })));
+      }
+
       // Return the questions
       res.status(200).json({
         success: true,
@@ -957,7 +1031,14 @@ class ExamController {
             points: eq.marks,
             order: eq.order,
             tags: eq.question.tags,
-            category: eq.question.exam_categories
+            category: eq.question.exam_categories,
+            // Include all question data needed for complex question types
+            tableData: eq.question.tableData,
+            answerSections: eq.question.answerSections,
+            enhancedSections: eq.question.enhancedSections,
+            options: eq.question.options || [],
+            remark: eq.question.remark,
+            timeLimit: eq.question.timeLimit
           }))
         }
       });

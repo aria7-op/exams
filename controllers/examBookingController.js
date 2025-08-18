@@ -796,6 +796,13 @@ class ExamBookingController {
         if (global.notificationService) {
           await global.notificationService.notifyBookingConfirmed(booking);
           logger.info(`🔔 Sent real-time booking confirmation notification to user ${userId}`);
+
+          // Admin/moderator broadcast for booking created
+          try {
+            await global.notificationService.notifyAdminsBookingCreated(booking);
+          } catch (adminNotifyErr) {
+            logger.warn('Failed to notify admins about booking created:', adminNotifyErr);
+          }
         }
         
         // Also send email notification as fallback

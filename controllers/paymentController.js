@@ -130,6 +130,21 @@ class PaymentController {
         }
       });
 
+      // Admin/moderator notification for payment processed
+      try {
+        if (global.notificationService) {
+          await global.notificationService.notifyAdminsPaymentProcessed({
+            id: processedPayment.id,
+            userId,
+            amount: processedPayment.amount,
+            totalAmount: processedPayment.amount,
+            currency: processedPayment.currency
+          });
+        }
+      } catch (e) {
+        logger.warn('Failed to notify admins for payment processed', e);
+      }
+
       res.status(200).json({
         success: true,
         message: 'Payment processed successfully',

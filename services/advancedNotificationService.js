@@ -461,6 +461,192 @@ class AdvancedNotificationService {
   }
 
   /**
+   * Admin broadcast: Exam attempt started
+   */
+  async notifyAdminsExamAttemptStarted(attemptData) {
+    try {
+      // Persist notifications for admins and moderators
+      const admins = await prisma.user.findMany({
+        where: { role: { in: ['ADMIN', 'SUPER_ADMIN', 'MODERATOR'] }, isActive: true },
+        select: { id: true }
+      });
+
+      const notifications = admins.map(admin => this.sendNotification({
+        userId: admin.id,
+        type: 'EXAM_ATTEMPT_STARTED',
+        title: '📝 Exam Attempt Started',
+        message: `User ${attemptData.userId} started exam "${attemptData.exam?.title || attemptData.examId}"`,
+        priority: 'normal',
+        channels: ['websocket', 'database'],
+        data: { attemptId: attemptData.id, examId: attemptData.examId, userId: attemptData.userId }
+      }));
+
+      await Promise.all(notifications);
+
+      // Realtime broadcast
+      if (this.io) {
+        this.io.to('admin-room').emit('exam-attempt-started', {
+          userId: attemptData.userId,
+          examId: attemptData.examId,
+          attemptId: attemptData.id,
+          examTitle: attemptData.exam?.title || 'Exam'
+        });
+      }
+
+      return { success: true };
+    } catch (error) {
+      logger.error('Failed to notify admins: exam attempt started', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Admin broadcast: Single answer submitted
+   */
+  async notifyAdminsExamAnswerSubmitted(payload) {
+    try {
+      const admins = await prisma.user.findMany({
+        where: { role: { in: ['ADMIN', 'SUPER_ADMIN', 'MODERATOR'] }, isActive: true },
+        select: { id: true }
+      });
+
+      const notifications = admins.map(admin => this.sendNotification({
+        userId: admin.id,
+        type: 'EXAM_ANSWER_SUBMITTED',
+        title: '🧩 Answer Submitted',
+        message: `User ${payload.userId} submitted an answer`,
+        priority: 'low',
+        channels: ['websocket', 'database'],
+        data: payload
+      }));
+
+      await Promise.all(notifications);
+
+      if (this.io) {
+        this.io.to('admin-room').emit('exam-answer-submitted', payload);
+      }
+
+      return { success: true };
+    } catch (error) {
+      logger.error('Failed to notify admins: exam answer submitted', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Admin broadcast: Exam attempt completed
+   */
+  async notifyAdminsExamAttemptCompleted(attemptData, results) {
+    try {
+      const admins = await prisma.user.findMany({
+        where: { role: { in: ['ADMIN', 'SUPER_ADMIN', 'MODERATOR'] }, isActive: true },
+        select: { id: true }
+      });
+
+      const notifications = admins.map(admin => this.sendNotification({
+        userId: admin.id,
+        type: 'EXAM_ATTEMPT_COMPLETED',
+        title: '✅ Exam Attempt Completed',
+        message: `User ${attemptData.userId} completed exam "${attemptData.exam?.title || attemptData.examId}" with ${results?.percentage?.toFixed?.(1) ?? results?.percentage || 0}%`,
+        priority: 'high',
+        channels: ['websocket', 'database'],
+        data: { attemptId: attemptData.id, examId: attemptData.examId, userId: attemptData.userId, percentage: results?.percentage }
+      }));
+
+      await Promise.all(notifications);
+
+      if (this.io) {
+        this.io.to('admin-room').emit('exam-attempt-completed', {
+          userId: attemptData.userId,
+          examId: attemptData.examId,
+          attemptId: attemptData.id,
+          percentage: results?.percentage
+        });
+      }
+
+      return { success: true };
+    } catch (error) {
+      logger.error('Failed to notify admins: exam attempt completed', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Admin broadcast: Booking created
+   */
+  async notifyAdminsBookingCreated(booking) {
+    try {
+      const admins = await prisma.user.findMany({
+        where: { role: { in: ['ADMIN', 'SUPER_ADMIN', 'MODERATOR'] }, isActive: true },
+        select: { id: true }
+      });
+
+      const notifications = admins.map(admin => this.sendNotification({
+        userId: admin.id,
+        type: 'BOOKING_CREATED',
+        title: '🆕 New Exam Booking',
+        message: `Booking created for exam "${booking.exam?.title || booking.examId}"`,
+        priority: 'normal',
+        channels: ['websocket', 'database'],
+        data: { bookingId: booking.id, examId: booking.examId, userId: booking.userId }
+      }));
+
+      await Promise.all(notifications);
+
+      if (this.io) {
+        this.io.to('admin-room').emit('booking-created', {
+          bookingId: booking.id,
+          examId: booking.examId,
+          userId: booking.userId,
+          scheduledAt: booking.scheduledAt
+        });
+      }
+
+      return { success: true };
+    } catch (error) {
+      logger.error('Failed to notify admins: booking created', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Admin broadcast: Payment processed
+   */
+  async notifyAdminsPaymentProcessed(payment) {
+    try {
+      const admins = await prisma.user.findMany({
+        where: { role: { in: ['ADMIN', 'SUPER_ADMIN', 'MODERATOR'] }, isActive: true },
+        select: { id: true }
+      });
+
+      const notifications = admins.map(admin => this.sendNotification({
+        userId: admin.id,
+        type: 'PAYMENT_PROCESSED',
+        title: '💳 Payment Processed',
+        message: `Payment processed for user ${payment.userId}`,
+        priority: 'normal',
+        channels: ['websocket', 'database'],
+        data: { paymentId: payment.id, amount: payment.totalAmount || payment.amount, userId: payment.userId }
+      }));
+
+      await Promise.all(notifications);
+
+      if (this.io) {
+        this.io.to('admin-room').emit('payment-processed', {
+          paymentId: payment.id,
+          amount: payment.totalAmount || payment.amount,
+          userId: payment.userId
+        });
+      }
+
+      return { success: true };
+    } catch (error) {
+      logger.error('Failed to notify admins: payment processed', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
    * Certificate Ready Notification
    */
   async notifyCertificateReady(certificateData) {
