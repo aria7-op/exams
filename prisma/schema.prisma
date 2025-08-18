@@ -742,6 +742,7 @@ enum QuestionType {
   ORDERING
   ACCOUNTING_TABLE
   COMPOUND_CHOICE
+  ENHANCED_COMPOUND
 }
 
 enum QuestionDifficulty {
