@@ -886,12 +886,12 @@ class ExamController {
         where: { id: examId },
         include: {
           examCategory: true,
-          examQuestions: {
+          questions: {
             include: {
               question: {
                 include: {
                   tags: true,
-                  category: true
+                  exam_categories: true
                 }
               }
             },
@@ -931,15 +931,15 @@ class ExamController {
             description: exam.description,
             examCategory: exam.examCategory
           },
-          questions: exam.examQuestions.map(eq => ({
+          questions: exam.questions.map(eq => ({
             id: eq.question.id,
             text: eq.question.text,
             type: eq.question.type,
             difficulty: eq.question.difficulty,
-            points: eq.points,
+            points: eq.marks,
             order: eq.order,
             tags: eq.question.tags,
-            category: eq.question.category
+            category: eq.question.exam_categories
           }))
         }
       });
