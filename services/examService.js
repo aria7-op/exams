@@ -691,10 +691,10 @@ class ExamService {
         questionCount: exam.totalQuestions || 10,
         examCategoryId: exam.examCategoryId,
         overlapPercentage: exam.questionOverlapPercentage || 10.0,
-        // Pass the exact question type distribution from the exam
-        essayQuestionsCount: exam.essayQuestionsCount || 0,
-        singleChoiceQuestionsCount: exam.singleChoiceQuestionsCount || 0,
-        multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
+                                           // Pass the exact question type distribution from the exam
+              essayQuestionsCount: exam.essayQuestionsCount || 0,
+              singleChoiceQuestionsCount: exam.singleChoiceQuestionsCount || 0,
+              multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
         shortAnswerQuestionsCount: exam.shortAnswerQuestionsCount || 0,
         fillInTheBlankQuestionsCount: exam.fillInTheBlankQuestionsCount || 0,
         trueFalseQuestionsCount: exam.trueFalseQuestionsCount || 0,

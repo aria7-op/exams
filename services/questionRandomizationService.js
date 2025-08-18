@@ -1776,10 +1776,9 @@ class QuestionRandomizationService {
     const userHistory = userId ? await this.getUserQuestionHistory(userId) : new Map();
     
     // Define the order of selection (priority order)
-    const typeOrder = [
-      { type: 'ESSAY', count: distribution.essayQuestionsCount },
-      { type: 'SINGLE_CHOICE', count: distribution.singleChoiceQuestionsCount },
-      { type: 'MULTIPLE_CHOICE', count: distribution.multipleChoiceQuestionsCount },
+                 const typeOrder = [
+               { type: 'ESSAY', count: distribution.essayQuestionsCount },
+               { type: 'MULTIPLE_CHOICE', count: distribution.multipleChoiceQuestionsCount },
       { type: 'SHORT_ANSWER', count: distribution.shortAnswerQuestionsCount },
       { type: 'FILL_IN_THE_BLANK', count: distribution.fillInTheBlankQuestionsCount },
       { type: 'TRUE_FALSE', count: distribution.trueFalseQuestionsCount },
