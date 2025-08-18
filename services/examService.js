@@ -347,7 +347,16 @@ class ExamService {
           isActive: true,
           isPublic: true
         },
-        include: {
+        select: {
+          id: true,
+          text: true,
+          type: true,
+          difficulty: true,
+          marks: true,
+          timeLimit: true,
+          remark: true,
+          tableData: true,
+          answerSections: true,
           options: {
             select: {
               id: true,
@@ -355,7 +364,13 @@ class ExamService {
               isCorrect: true
             }
           },
-          images: true
+          images: {
+            select: {
+              id: true,
+              imageUrl: true,
+              altText: true
+            }
+          }
         },
         orderBy: { createdAt: 'desc' }
       });
@@ -531,6 +546,28 @@ class ExamService {
           scheduledStart: processedData.scheduledStart, 
           scheduledEnd: processedData.scheduledEnd 
         });
+      }
+
+      // Handle foreign key fields -> relation updates
+      if (processedData.examCategoryId) {
+        processedData.examCategory = {
+          connect: { id: processedData.examCategoryId }
+        };
+        delete processedData.examCategoryId;
+      }
+
+      if (processedData.createdBy) {
+        processedData.creator = {
+          connect: { id: processedData.createdBy }
+        };
+        delete processedData.createdBy;
+      }
+
+      if (processedData.approvedBy) {
+        processedData.approver = {
+          connect: { id: processedData.approvedBy }
+        };
+        delete processedData.approvedBy;
       }
 
       // Add updatedAt timestamp

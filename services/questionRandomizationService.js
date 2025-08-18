@@ -375,7 +375,18 @@ class QuestionRandomizationService {
         isActive: true
         // Temporarily removed isPublic and approvedBy requirements for testing
       },
-      include: {
+      select: {
+        id: true,
+        text: true,
+        type: true,
+        difficulty: true,
+        marks: true,
+        timeLimit: true,
+        remark: true,
+        tableData: true,
+        answerSections: true,
+        createdAt: true,
+        updatedAt: true,
         options: {
           select: {
             id: true,
@@ -387,9 +398,20 @@ class QuestionRandomizationService {
           orderBy: { sortOrder: 'asc' }
         },
         images: {
+          select: {
+            id: true,
+            imageUrl: true,
+            altText: true,
+            sortOrder: true
+          },
           orderBy: { sortOrder: 'asc' }
         },
-        tags: true
+        tags: {
+          select: {
+            id: true,
+            tag: true
+          }
+        }
       },
       orderBy: [
         { usageCount: 'asc' },

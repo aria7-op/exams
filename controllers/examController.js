@@ -204,6 +204,12 @@ class ExamController {
       // The exam service now returns questions with proper distribution
       // No need to call questionRandomizationService again
       const questions = result.questions || [];
+      
+      // Debug logging for question types
+      logger.info('Questions received from exam service:', {
+        totalQuestions: questions.length,
+        questionTypes: questions.map(q => ({ id: q.id, type: q.type, optionsCount: q.options?.length || 0 }))
+      });
 
       logger.info('Exam started with questions', {
         examId,
@@ -241,10 +247,15 @@ class ExamController {
             difficulty: q.difficulty,
             marks: q.marks,
             timeLimit: q.timeLimit,
+            remark: q.remark,
+            tableData: q.tableData,
+            answerSections: q.answerSections,
             options: q.options?.map(opt => {
               const baseOption = {
                 id: opt.id,
-                text: opt.text
+                text: opt.text,
+                sortOrder: opt.sortOrder,
+                isCorrect: opt.isCorrect
               };
               
               // Add type-specific properties
@@ -252,9 +263,13 @@ class ExamController {
                 // For matching questions, we need to identify which options belong together
                 // We'll use the sortOrder to determine pairs
                 baseOption.pairId = opt.sortOrder;
+                // Also add sortOrder for frontend compatibility
+                baseOption.sortOrder = opt.sortOrder;
               } else if (q.type === 'ORDERING') {
                 // For ordering questions, we need the correct order
                 baseOption.correctOrder = opt.sortOrder;
+                // Also add sortOrder for frontend compatibility
+                baseOption.sortOrder = opt.sortOrder;
               }
               
               return baseOption;
