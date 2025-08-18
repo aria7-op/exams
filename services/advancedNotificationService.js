@@ -150,11 +150,28 @@ class AdvancedNotificationService {
    */
   async storeNotification(notificationData) {
     try {
+      // Normalize notification type to a valid enum value
+      const allowedTypes = new Set([
+        'SYSTEM_ANNOUNCEMENT',
+        'BOOKING_CONFIRMED',
+        'BOOKING_CANCELLED',
+        'PAYMENT_SUCCESS',
+        'PAYMENT_FAILED',
+        'EXAM_STARTED',
+        'EXAM_COMPLETED',
+        'CERTIFICATE_READY',
+        'ACCOUNT_STATUS_CHANGED',
+        'EXAM_REMINDER'
+      ]);
+      const normalizedType = allowedTypes.has(notificationData.type)
+        ? notificationData.type
+        : 'SYSTEM_ANNOUNCEMENT';
+
       const notification = await prisma.notification.create({
         data: {
           id: notificationData.id,
           userId: notificationData.userId,
-          type: notificationData.type,
+          type: normalizedType,
           title: notificationData.title,
           message: notificationData.message,
           data: notificationData.data,
