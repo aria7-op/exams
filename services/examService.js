@@ -693,6 +693,7 @@ class ExamService {
         overlapPercentage: exam.questionOverlapPercentage || 10.0,
         // Pass the exact question type distribution from the exam
         essayQuestionsCount: exam.essayQuestionsCount || 0,
+        singleChoiceQuestionsCount: exam.singleChoiceQuestionsCount || 0,
         multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
         shortAnswerQuestionsCount: exam.shortAnswerQuestionsCount || 0,
         fillInTheBlankQuestionsCount: exam.fillInTheBlankQuestionsCount || 0,
@@ -760,6 +761,7 @@ class ExamService {
           instructions: exam.instructions,
           rules: exam.rules,
           // Add question distribution fields
+          singleChoiceQuestionsCount: exam.singleChoiceQuestionsCount || 0,
           multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
           fillInTheBlankQuestionsCount: exam.fillInTheBlankQuestionsCount || 0,
           essayQuestionsCount: exam.essayQuestionsCount || 0,

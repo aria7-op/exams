@@ -113,6 +113,7 @@ class QuestionRandomizationService {
       
       logger.info('Questions grouped by type', {
         essay: questionsByType.ESSAY?.length || 0,
+        singleChoice: questionsByType.SINGLE_CHOICE?.length || 0,
         multipleChoice: questionsByType.MULTIPLE_CHOICE?.length || 0,
         shortAnswer: questionsByType.SHORT_ANSWER?.length || 0,
         fillInTheBlank: questionsByType.FILL_IN_THE_BLANK?.length || 0,
@@ -134,7 +135,10 @@ class QuestionRandomizationService {
           fillInTheBlankQuestionsCount,
           trueFalseQuestionsCount,
           matchingQuestionsCount,
-          orderingQuestionsCount
+          orderingQuestionsCount,
+          accountingTableQuestionsCount,
+          compoundChoiceQuestionsCount,
+          enhancedCompoundQuestionsCount
         },
         userId,
         overlapPercentage
@@ -153,7 +157,10 @@ class QuestionRandomizationService {
           fillInTheBlank: fillInTheBlankQuestionsCount,
           trueFalse: trueFalseQuestionsCount,
           matching: matchingQuestionsCount,
-          ordering: orderingQuestionsCount
+          ordering: orderingQuestionsCount,
+          accountingTable: accountingTableQuestionsCount,
+          compoundChoice: compoundChoiceQuestionsCount,
+          enhancedCompound: enhancedCompoundQuestionsCount
         }
       });
 
@@ -1771,6 +1778,7 @@ class QuestionRandomizationService {
     // Define the order of selection (priority order)
     const typeOrder = [
       { type: 'ESSAY', count: distribution.essayQuestionsCount },
+      { type: 'SINGLE_CHOICE', count: distribution.singleChoiceQuestionsCount },
       { type: 'MULTIPLE_CHOICE', count: distribution.multipleChoiceQuestionsCount },
       { type: 'SHORT_ANSWER', count: distribution.shortAnswerQuestionsCount },
       { type: 'FILL_IN_THE_BLANK', count: distribution.fillInTheBlankQuestionsCount },
@@ -1922,6 +1930,7 @@ class QuestionRandomizationService {
     // Check each question type for missing questions
     const typeMapping = {
       'ESSAY': 'essayQuestionsCount',
+      'SINGLE_CHOICE': 'singleChoiceQuestionsCount',
       'MULTIPLE_CHOICE': 'multipleChoiceQuestionsCount',
       'SHORT_ANSWER': 'shortAnswerQuestionsCount',
       'FILL_IN_THE_BLANK': 'fillInTheBlankQuestionsCount',

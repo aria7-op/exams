@@ -218,12 +218,15 @@ model Exam {
   
   // Question type distribution
   essayQuestionsCount       Int?           @default(0) @map("essay_questions_count")
+  singleChoiceQuestionsCount Int?          @default(0) @map("single_choice_questions_count")
   multipleChoiceQuestionsCount Int?        @default(0) @map("multiple_choice_questions_count")
   shortAnswerQuestionsCount Int?           @default(0) @map("short_answer_questions_count")
   fillInTheBlankQuestionsCount Int?        @default(0) @map("fill_in_the_blank_questions_count")
   trueFalseQuestionsCount   Int?           @default(0) @map("true_false_questions_count")
   matchingQuestionsCount    Int?           @default(0) @map("matching_questions_count")
   orderingQuestionsCount    Int?           @default(0) @map("ordering_questions_count")
+  accountingTableQuestionsCount Int?       @default(0) @map("accounting_table_questions_count")
+  compoundChoiceQuestionsCount Int?        @default(0) @map("compound_choice_questions_count")
   enhancedCompoundQuestionsCount Int?      @default(0) @map("enhanced_compound_questions_count")
   
   certificates              Certificate[]
