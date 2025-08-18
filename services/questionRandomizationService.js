@@ -78,6 +78,7 @@ class QuestionRandomizationService {
       overlapPercentage = 10.0,
       // Question type distribution
       essayQuestionsCount = 0,
+      singleChoiceQuestionsCount = 0,
       multipleChoiceQuestionsCount = 0,
       shortAnswerQuestionsCount = 0,
       fillInTheBlankQuestionsCount = 0,
@@ -130,6 +131,7 @@ class QuestionRandomizationService {
         questionsByType,
         {
           essayQuestionsCount,
+          singleChoiceQuestionsCount,
           multipleChoiceQuestionsCount,
           shortAnswerQuestionsCount,
           fillInTheBlankQuestionsCount,
@@ -152,6 +154,7 @@ class QuestionRandomizationService {
         }, {}),
         requestedDistribution: {
           essay: essayQuestionsCount,
+          singleChoice: singleChoiceQuestionsCount,
           multipleChoice: multipleChoiceQuestionsCount,
           shortAnswer: shortAnswerQuestionsCount,
           fillInTheBlank: fillInTheBlankQuestionsCount,
@@ -166,6 +169,7 @@ class QuestionRandomizationService {
 
       // Check if we have a specific question type distribution
       const hasTypeDistribution = essayQuestionsCount > 0 || 
+                                 singleChoiceQuestionsCount > 0 ||
                                  multipleChoiceQuestionsCount > 0 || 
                                  shortAnswerQuestionsCount > 0 || 
                                  fillInTheBlankQuestionsCount > 0 || 
@@ -178,7 +182,7 @@ class QuestionRandomizationService {
 
       if (hasTypeDistribution && selectedQuestions.length > 0) {
         // Verify we got the expected total count
-              const expectedTotal = essayQuestionsCount + multipleChoiceQuestionsCount + 
+              const expectedTotal = essayQuestionsCount + singleChoiceQuestionsCount + multipleChoiceQuestionsCount + 
                            shortAnswerQuestionsCount + fillInTheBlankQuestionsCount + 
                            trueFalseQuestionsCount + matchingQuestionsCount + 
                            orderingQuestionsCount + accountingTableQuestionsCount + 
@@ -196,6 +200,7 @@ class QuestionRandomizationService {
           
           logger.warn('📊 Actual vs Expected Distribution:', {
             essay: { expected: essayQuestionsCount, actual: actualDistribution['ESSAY'] || 0 },
+            singleChoice: { expected: singleChoiceQuestionsCount, actual: actualDistribution['SINGLE_CHOICE'] || 0 },
             multipleChoice: { expected: multipleChoiceQuestionsCount, actual: actualDistribution['MULTIPLE_CHOICE'] || 0 },
             shortAnswer: { expected: shortAnswerQuestionsCount, actual: actualDistribution['SHORT_ANSWER'] || 0 },
             fillInTheBlank: { expected: fillInTheBlankQuestionsCount, actual: actualDistribution['FILL_IN_THE_BLANK'] || 0 },
@@ -214,6 +219,7 @@ class QuestionRandomizationService {
             questionsByType,
             {
               essayQuestionsCount,
+              singleChoiceQuestionsCount,
               multipleChoiceQuestionsCount,
               shortAnswerQuestionsCount,
               fillInTheBlankQuestionsCount,
