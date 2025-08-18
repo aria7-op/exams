@@ -495,14 +495,58 @@ const validateBulkQuestionImport = (data) => {
     answerSections: Joi.array().items(
       Joi.object({
         title: Joi.string().min(1).max(200).required(),
+        type: Joi.string().valid('MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'SHORT_ANSWER', 'ESSAY', 'MATCHING', 'ORDERING', 'ACCOUNTING_TABLE', 'DROPDOWN_SELECT').optional().default('MULTIPLE_CHOICE'),
+        question: Joi.string().min(1).max(1000).optional(),
+        marks: Joi.number().integer().min(1).max(100).optional(),
+        required: Joi.boolean().optional().default(true),
+        // For different question types
         options: Joi.array().items(
           Joi.object({
             text: Joi.string().min(1).max(500).required(),
             isCorrect: Joi.boolean().required()
           })
-        ).min(2).max(10).required()
+        ).min(2).max(10).optional(),
+        correctAnswers: Joi.array().items(Joi.string().min(1).max(500)).min(1).max(20).optional(),
+        tableData: Joi.string().min(1).max(10000).optional()
       })
-    ).min(1).max(10).optional()
+    ).min(1).max(10).optional(),
+    // Enhanced sections for ENHANCED_COMPOUND questions
+    enhancedSections: Joi.array().items(
+      Joi.object({
+        title: Joi.string().min(1).max(200).required(),
+        type: Joi.string().valid('MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'SHORT_ANSWER', 'ESSAY', 'MATCHING', 'ORDERING', 'ACCOUNTING_TABLE', 'COMPOUND_CHOICE', 'DROPDOWN_SELECT').required(),
+        question: Joi.string().min(1).max(1000).optional(),
+        marks: Joi.number().integer().min(1).max(100).optional(),
+        required: Joi.boolean().optional().default(true),
+        // For different question types
+        options: Joi.array().items(
+          Joi.object({
+            text: Joi.string().min(1).max(500).required(),
+            isCorrect: Joi.boolean().required()
+          })
+        ).min(2).max(10).optional(),
+        correctAnswers: Joi.array().items(Joi.string().min(1).max(500)).min(1).max(20).optional(),
+        tableData: Joi.string().min(1).max(10000).optional(),
+        // For COMPOUND_CHOICE sections within enhancedSections
+        answerSections: Joi.array().items(
+          Joi.object({
+            title: Joi.string().min(1).max(200).required(),
+            type: Joi.string().valid('MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'SHORT_ANSWER', 'ESSAY', 'MATCHING', 'ORDERING', 'ACCOUNTING_TABLE', 'DROPDOWN_SELECT').optional().default('MULTIPLE_CHOICE'),
+            question: Joi.string().min(1).max(1000).optional(),
+            marks: Joi.number().integer().min(1).max(100).optional(),
+            required: Joi.boolean().optional().default(true),
+            options: Joi.array().items(
+              Joi.object({
+                text: Joi.string().min(1).max(500).required(),
+                isCorrect: Joi.boolean().required()
+              })
+            ).min(2).max(10).optional(),
+            correctAnswers: Joi.array().items(Joi.string().min(1).max(500)).min(1).max(20).optional(),
+            tableData: Joi.string().min(1).max(10000).optional()
+          })
+        ).min(1).max(10).optional()
+      })
+    ).min(1).max(20).optional()
   });
 
   const schema = Joi.object({

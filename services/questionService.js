@@ -110,6 +110,9 @@ class QuestionService {
             // - options for all other section types
             if (enhancedSections && Array.isArray(enhancedSections) && enhancedSections.length > 0) {
               console.log('🔍 DEBUG: Processing enhancedSections for ENHANCED_COMPOUND question:', JSON.stringify(enhancedSections, null, 2));
+              
+              // Store enhancedSections as JSON in the database
+              questionCreateData.enhancedSections = enhancedSections;
             }
           } else if (type === 'MATCHING' && options.length > 0) {
             // For MATCHING questions, store all options with sortOrder for pairing
