@@ -499,8 +499,6 @@ class QuestionRandomizationService {
         tags: true
       },
       orderBy: [
-        { usageCount: 'asc' },
-        { correctAnswerRate: 'desc' },
         { createdAt: 'desc' }
       ]
     });
@@ -510,6 +508,21 @@ class QuestionRandomizationService {
       totalQuestions: questions.length,
       questionIds: questions.map(q => q.id)
     });
+
+    // Debug: Log sample question data to see what's being retrieved
+    if (questions.length > 0) {
+      const sampleQuestion = questions[0];
+      logger.info('Sample question data retrieved:', {
+        id: sampleQuestion.id,
+        type: sampleQuestion.type,
+        hasOptions: sampleQuestion.options?.length > 0,
+        optionsCount: sampleQuestion.options?.length || 0,
+        hasEnhancedSections: !!sampleQuestion.enhancedSections,
+        hasAnswerSections: !!sampleQuestion.answerSections,
+        enhancedSectionsType: typeof sampleQuestion.enhancedSections,
+        answerSectionsType: typeof sampleQuestion.answerSections
+      });
+    }
     
     return questions;
   }
