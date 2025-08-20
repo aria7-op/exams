@@ -79,14 +79,16 @@ class QuestionRandomizationService {
       // Question type distribution
       essayQuestionsCount = 0,
       multipleChoiceQuestionsCount = 0,
+      singleChoiceQuestionsCount = 0,
+      dropdownSelectQuestionsCount = 0,
       shortAnswerQuestionsCount = 0,
       fillInTheBlankQuestionsCount = 0,
       trueFalseQuestionsCount = 0,
       matchingQuestionsCount = 0,
       orderingQuestionsCount = 0,
-              accountingTableQuestionsCount = 0,
-        compoundChoiceQuestionsCount = 0,
-        enhancedCompoundQuestionsCount = 0
+      accountingTableQuestionsCount = 0,
+      compoundChoiceQuestionsCount = 0,
+      enhancedCompoundQuestionsCount = 0
     } = params;
 
     try {
@@ -116,6 +118,7 @@ class QuestionRandomizationService {
         essay: questionsByType.ESSAY?.length || 0,
         singleChoice: questionsByType.SINGLE_CHOICE?.length || 0,
         multipleChoice: questionsByType.MULTIPLE_CHOICE?.length || 0,
+        dropdownSelect: questionsByType.DROPDOWN_SELECT?.length || 0,
         shortAnswer: questionsByType.SHORT_ANSWER?.length || 0,
         fillInTheBlank: questionsByType.FILL_IN_THE_BLANK?.length || 0,
         trueFalse: questionsByType.TRUE_FALSE?.length || 0,
@@ -132,6 +135,8 @@ class QuestionRandomizationService {
         {
           essayQuestionsCount,
           multipleChoiceQuestionsCount,
+          singleChoiceQuestionsCount,
+          dropdownSelectQuestionsCount,
           shortAnswerQuestionsCount,
           fillInTheBlankQuestionsCount,
           trueFalseQuestionsCount,
@@ -154,6 +159,8 @@ class QuestionRandomizationService {
         requestedDistribution: {
           essay: essayQuestionsCount,
           multipleChoice: multipleChoiceQuestionsCount,
+          singleChoice: singleChoiceQuestionsCount,
+          dropdownSelect: dropdownSelectQuestionsCount,
           shortAnswer: shortAnswerQuestionsCount,
           fillInTheBlank: fillInTheBlankQuestionsCount,
           trueFalse: trueFalseQuestionsCount,
@@ -168,6 +175,8 @@ class QuestionRandomizationService {
       // Check if we have a specific question type distribution
       const hasTypeDistribution = essayQuestionsCount > 0 || 
                                  multipleChoiceQuestionsCount > 0 || 
+                                 singleChoiceQuestionsCount > 0 || 
+                                 dropdownSelectQuestionsCount > 0 || 
                                  shortAnswerQuestionsCount > 0 || 
                                  fillInTheBlankQuestionsCount > 0 || 
                                  trueFalseQuestionsCount > 0 || 
@@ -180,6 +189,7 @@ class QuestionRandomizationService {
       if (hasTypeDistribution && selectedQuestions.length > 0) {
         // Verify we got the expected total count
               const expectedTotal = essayQuestionsCount + multipleChoiceQuestionsCount + 
+                           singleChoiceQuestionsCount + dropdownSelectQuestionsCount + 
                            shortAnswerQuestionsCount + fillInTheBlankQuestionsCount + 
                            trueFalseQuestionsCount + matchingQuestionsCount + 
                            orderingQuestionsCount + accountingTableQuestionsCount + 
@@ -198,6 +208,8 @@ class QuestionRandomizationService {
           logger.warn('📊 Actual vs Expected Distribution:', {
             essay: { expected: essayQuestionsCount, actual: actualDistribution['ESSAY'] || 0 },
             multipleChoice: { expected: multipleChoiceQuestionsCount, actual: actualDistribution['MULTIPLE_CHOICE'] || 0 },
+            singleChoice: { expected: singleChoiceQuestionsCount, actual: actualDistribution['SINGLE_CHOICE'] || 0 },
+            dropdownSelect: { expected: dropdownSelectQuestionsCount, actual: actualDistribution['DROPDOWN_SELECT'] || 0 },
             shortAnswer: { expected: shortAnswerQuestionsCount, actual: actualDistribution['SHORT_ANSWER'] || 0 },
             fillInTheBlank: { expected: fillInTheBlankQuestionsCount, actual: actualDistribution['FILL_IN_THE_BLANK'] || 0 },
             trueFalse: { expected: trueFalseQuestionsCount, actual: actualDistribution['TRUE_FALSE'] || 0 },
@@ -216,6 +228,8 @@ class QuestionRandomizationService {
             {
               essayQuestionsCount,
               multipleChoiceQuestionsCount,
+              singleChoiceQuestionsCount,
+              dropdownSelectQuestionsCount,
               shortAnswerQuestionsCount,
               fillInTheBlankQuestionsCount,
               trueFalseQuestionsCount,
@@ -1109,6 +1123,99 @@ class QuestionRandomizationService {
         orderBy: { order: 'asc' }
       });
 
+      // Debug: Also try a direct query to see if there's a Prisma issue
+      if (assignedQuestions.length === 0) {
+        logger.warn('⚠️ No questions found via examQuestion relation, trying direct query...');
+        
+        // Try to get questions directly from the questions table
+        const directQuestions = await prisma.question.findMany({
+          where: {
+            examQuestions: {
+              some: {
+                examId: examId
+              }
+            }
+          },
+          include: {
+            options: {
+              orderBy: { sortOrder: 'asc' }
+            },
+            images: {
+              orderBy: { sortOrder: 'asc' }
+            },
+            tags: true
+          }
+        });
+        
+        if (directQuestions.length > 0) {
+          logger.info('✅ Found questions via direct query:', {
+            count: directQuestions.length,
+            types: directQuestions.map(q => q.type)
+          });
+          
+          // Return the questions found via direct query
+          return directQuestions;
+        }
+      }
+
+      // Debug: Check if the issue is with the Prisma include
+      if (assignedQuestions.length > 0) {
+        logger.info('🔍 DEBUG: Checking if options exist in database...');
+        
+        // Get the first question ID to test
+        const firstQuestionId = assignedQuestions[0]?.questionId;
+        if (firstQuestionId) {
+          // Try to get the question directly with options
+          const testQuestion = await prisma.question.findUnique({
+            where: { id: firstQuestionId },
+            include: {
+              options: {
+                orderBy: { sortOrder: 'asc' }
+              }
+            }
+          });
+          
+          logger.info('🔍 DEBUG: Direct question query result:', {
+            questionId: firstQuestionId,
+            hasOptions: testQuestion?.options?.length > 0,
+            optionsCount: testQuestion?.options?.length || 0,
+            optionsData: testQuestion?.options || []
+          });
+        }
+      }
+
+      // Debug: Log the raw data to see what's being retrieved
+      logger.info('🔍 DEBUG: Raw assignedQuestions data:', {
+        examId,
+        assignedCount: assignedQuestions.length,
+        rawData: assignedQuestions.map(eq => ({
+          examQuestionId: eq.id,
+          questionId: eq.questionId,
+          questionType: eq.question?.type,
+          hasOptions: eq.question?.options?.length > 0,
+          optionsCount: eq.question?.options?.length || 0,
+          optionsData: eq.question?.options || [],
+          hasEnhancedSections: !!eq.question?.enhancedSections,
+          hasAnswerSections: !!eq.question?.answerSections
+        }))
+      });
+
+      // Debug: Log the raw data to see what's being retrieved
+      logger.info('🔍 DEBUG: Raw assignedQuestions data:', {
+        examId,
+        assignedCount: assignedQuestions.length,
+        rawData: assignedQuestions.map(eq => ({
+          examQuestionId: eq.id,
+          questionId: eq.questionId,
+          questionType: eq.question?.type,
+          hasOptions: eq.question?.options?.length > 0,
+          optionsCount: eq.question?.options?.length || 0,
+          optionsData: eq.question?.options || [],
+          hasEnhancedSections: !!eq.question?.enhancedSections,
+          hasAnswerSections: !!eq.question?.answerSections
+        }))
+      });
+
       logger.info('Found assigned questions for exam', {
         examId,
         assignedCount: assignedQuestions.length,
@@ -1124,6 +1231,55 @@ class QuestionRandomizationService {
       if (assignedQuestions.length > 0) {
         // Return the questions already assigned to this exam
         const questions = assignedQuestions.map(eq => eq.question);
+        
+        // Debug: Log what's being returned
+        logger.info('🔍 DEBUG: Questions being returned:', {
+          count: questions.length,
+          types: questions.map(q => q.type),
+          sampleQuestion: questions[0] ? {
+            id: questions[0].id,
+            type: questions[0].type,
+            hasOptions: questions[0].options?.length > 0,
+            optionsCount: questions[0].options?.length || 0,
+            optionsData: questions[0].options || [],
+            hasEnhancedSections: !!questions[0].enhancedSections,
+            hasAnswerSections: !!questions[0].answerSections
+          } : null
+        });
+        
+        // CRITICAL: If options are empty, try to fetch them directly
+        if (questions.some(q => !q.options || q.options.length === 0)) {
+          logger.warn('⚠️ Some questions have empty options, trying to fetch options directly...');
+          
+          const questionIds = questions.map(q => q.id);
+          const questionsWithOptions = await prisma.question.findMany({
+            where: { id: { in: questionIds } },
+            include: {
+              options: {
+                orderBy: { sortOrder: 'asc' }
+              },
+              images: {
+                orderBy: { sortOrder: 'asc' }
+              }
+            }
+          });
+          
+          // Merge the options back into the original questions
+          const questionsMap = new Map(questionsWithOptions.map(q => [q.id, q]));
+          questions.forEach(q => {
+            const questionWithOptions = questionsMap.get(q.id);
+            if (questionWithOptions) {
+              q.options = questionWithOptions.options;
+              q.images = questionWithOptions.images;
+            }
+          });
+          
+          logger.info('✅ Options fetched directly, updated questions:', {
+            updatedCount: questions.filter(q => q.options && q.options.length > 0).length,
+            totalCount: questions.length
+          });
+        }
+        
         logger.info('Returning assigned questions', {
           count: questions.length,
           types: questions.map(q => q.type)
@@ -2155,6 +2311,8 @@ class QuestionRandomizationService {
       logger.error('Expected vs Actual:', {
         essay: { expected: distribution.essayQuestionsCount, actual: finalDistribution['ESSAY'] || 0 },
         multipleChoice: { expected: distribution.multipleChoiceQuestionsCount, actual: finalDistribution['MULTIPLE_CHOICE'] || 0 },
+        singleChoice: { expected: distribution.singleChoiceQuestionsCount, actual: finalDistribution['SINGLE_CHOICE'] || 0 },
+        dropdownSelect: { expected: distribution.dropdownSelectQuestionsCount, actual: finalDistribution['DROPDOWN_SELECT'] || 0 },
         shortAnswer: { expected: distribution.shortAnswerQuestionsCount, actual: finalDistribution['SHORT_ANSWER'] || 0 },
         fillInTheBlank: { expected: distribution.fillInTheBlankQuestionsCount, actual: finalDistribution['FILL_IN_THE_BLANK'] || 0 },
         trueFalse: { expected: distribution.trueFalseQuestionsCount, actual: finalDistribution['TRUE_FALSE'] || 0 },
@@ -2206,6 +2364,7 @@ class QuestionRandomizationService {
       'ESSAY': 'essayQuestionsCount',
       'SINGLE_CHOICE': 'singleChoiceQuestionsCount',
       'MULTIPLE_CHOICE': 'multipleChoiceQuestionsCount',
+      'DROPDOWN_SELECT': 'dropdownSelectQuestionsCount',
       'SHORT_ANSWER': 'shortAnswerQuestionsCount',
       'FILL_IN_THE_BLANK': 'fillInTheBlankQuestionsCount',
       'TRUE_FALSE': 'trueFalseQuestionsCount',
