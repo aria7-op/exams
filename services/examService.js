@@ -713,33 +713,130 @@ class ExamService {
         }
       });
       
-      // Use the question randomization service to get questions with proper distributioan
-      const questions = await questionRandomizationService.generateRandomQuestions({
-        examId,
-        userId,
-        questionCount: exam.totalQuestions || 10,
-        examCategoryId: exam.examCategoryId,
-        overlapPercentage: exam.questionOverlapPercentage || 10.0,
-        // Pass the exact question type distribution from the exam
-        essayQuestionsCount: exam.essayQuestionsCount || 0,
-        multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
-        shortAnswerQuestionsCount: exam.shortAnswerQuestionsCount || 0,
-        fillInTheBlankQuestionsCount: exam.fillInTheBlankQuestionsCount || 0,
-        trueFalseQuestionsCount: exam.trueFalseQuestionsCount || 0,
-        matchingQuestionsCount: exam.matchingQuestionsCount || 0,
-        orderingQuestionsCount: exam.orderingQuestionsCount || 0,
-        accountingTableQuestionsCount: exam.accountingTableQuestionsCount || 0,
-        compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0,
-        enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0,
-        singleChoiceQuestionsCount: exam.singleChoiceQuestionsCount || 0,
-        dropdownSelectQuestionsCount: exam.dropdownSelectQuestionsCount || 0
-      });
+      // CRITICAL: First check if there are already assigned questions for this exam
+      // If so, retrieve those instead of generating new ones
+      let questions = [];
       
-      logger.info('Questions generated with distribution', {
+      // Check if there are questions already assigned to this exam
+      const assignedQuestions = await prisma.examQuestion.findMany({
+        where: { examId },
+        include: {
+          question: {
+            include: {
+              options: {
+                orderBy: { sortOrder: 'asc' }
+              },
+              images: {
+                orderBy: { sortOrder: 'asc' }
+              },
+              tags: true
+            }
+          }
+        },
+        orderBy: { order: 'asc' }
+      });
+
+      // Debug: Log what was found in the exam_questions table
+      logger.info('🔍 DEBUG: exam_questions table query result:', {
+        examId,
+        assignedQuestionsCount: assignedQuestions.length,
+        rawData: assignedQuestions.map(eq => ({
+          examQuestionId: eq.id,
+          questionId: eq.questionId,
+          questionType: eq.question?.type,
+          hasOptions: eq.question?.options?.length > 0,
+          optionsCount: eq.question?.options?.length || 0,
+          hasEnhancedSections: !!eq.question?.enhancedSections,
+          hasAnswerSections: !!eq.question?.answerSections
+        }))
+      });
+
+      if (assignedQuestions.length > 0) {
+        // Use the questions already assigned to this exam
+        questions = assignedQuestions.map(eq => eq.question);
+        
+        // Debug: Log the questions being returned to see if options are present
+        logger.info('🔍 DEBUG: Questions retrieved from exam_questions table:', {
+          examId,
+          questionsCount: questions.length,
+          types: questions.map(q => q.type),
+          sampleQuestion: questions[0] ? {
+            id: questions[0].id,
+            type: questions[0].type,
+            hasOptions: questions[0].options?.length > 0,
+            optionsCount: questions[0].options?.length || 0,
+            hasEnhancedSections: !!questions[0].enhancedSections,
+            hasAnswerSections: !!questions[0].answerSections
+          } : null
+        });
+        
+        logger.info('✅ Using existing assigned questions for exam', {
+          examId,
+          questionsCount: questions.length,
+          types: questions.map(q => q.type)
+        });
+      } else {
+        // No questions assigned, try to get questions directly from the questions table
+        logger.info('🔄 No questions found in exam_questions table, trying direct query...');
+        
+        // Try to get questions directly from the questions table
+        const directQuestions = await prisma.question.findMany({
+          where: {
+            examQuestions: {
+              some: {
+                examId: examId
+              }
+            }
+          },
+          include: {
+            options: {
+              orderBy: { sortOrder: 'asc' }
+            },
+            images: {
+              orderBy: { sortOrder: 'asc' }
+            },
+            tags: true
+          }
+        });
+        
+        if (directQuestions.length > 0) {
+          questions = directQuestions;
+          logger.info('✅ Found questions via direct query:', {
+            count: directQuestions.length,
+            types: directQuestions.map(q => q.type)
+          });
+        } else {
+          // No questions found, generate new ones
+          logger.info('🔄 No questions found via direct query, generating new ones...');
+          questions = await questionRandomizationService.generateRandomQuestions({
+            examId,
+            userId,
+            questionCount: exam.totalQuestions || 10,
+            examCategoryId: exam.examCategoryId,
+            overlapPercentage: exam.questionOverlapPercentage || 10.0,
+            // Pass the exact question type distribution from the exam
+            essayQuestionsCount: exam.essayQuestionsCount || 0,
+            multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
+            shortAnswerQuestionsCount: exam.shortAnswerQuestionsCount || 0,
+            fillInTheBlankQuestionsCount: exam.fillInTheBlankQuestionsCount || 0,
+            trueFalseQuestionsCount: exam.trueFalseQuestionsCount || 0,
+            matchingQuestionsCount: exam.matchingQuestionsCount || 0,
+            orderingQuestionsCount: exam.orderingQuestionsCount || 0,
+            accountingTableQuestionsCount: exam.accountingTableQuestionsCount || 0,
+            compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0,
+            enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0,
+            singleChoiceQuestionsCount: exam.singleChoiceQuestionsCount || 0,
+            dropdownSelectQuestionsCount: exam.dropdownSelectQuestionsCount || 0
+          });
+        }
+      }
+      
+      logger.info('Questions retrieved for exam', {
         examId,
         questionsCount: questions.length,
         requestedCount: exam.totalQuestions,
         actualCount: questions.length,
+        source: assignedQuestions.length > 0 ? 'existing_assigned' : 'newly_generated',
         questionTypeDistribution: questions.reduce((acc, q) => {
           acc[q.type] = (acc[q.type] || 0) + 1;
           return acc;
