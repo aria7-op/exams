@@ -1074,6 +1074,53 @@ class QuestionRandomizationService {
     try {
       logger.info('Getting questions for attempt', { attemptId, examId, userId });
 
+      // CRITICAL: For booking-based exams, we should get the questions already assigned to the exam
+      // NOT generate new ones! The questions were assigned when the booking was created.
+      
+      // First, try to get questions from the examQuestion table (already assigned questions)
+      const assignedQuestions = await prisma.examQuestion.findMany({
+        where: { examId },
+        include: {
+          question: {
+            include: {
+              options: {
+                orderBy: { sortOrder: 'asc' }
+              },
+              images: {
+                orderBy: { sortOrder: 'asc' }
+              },
+              tags: true
+            }
+          }
+        },
+        orderBy: { order: 'asc' }
+      });
+
+      logger.info('Found assigned questions for exam', {
+        examId,
+        assignedCount: assignedQuestions.length,
+        questions: assignedQuestions.map(eq => ({
+          id: eq.question.id,
+          type: eq.question.type,
+          hasOptions: eq.question.options?.length > 0,
+          hasEnhancedSections: !!eq.question.enhancedSections,
+          hasAnswerSections: !!eq.question.answerSections
+        }))
+      });
+
+      if (assignedQuestions.length > 0) {
+        // Return the questions already assigned to this exam
+        const questions = assignedQuestions.map(eq => eq.question);
+        logger.info('Returning assigned questions', {
+          count: questions.length,
+          types: questions.map(q => q.type)
+        });
+        return questions;
+      }
+
+      // Fallback: If no questions are assigned, generate new ones
+      logger.warn('No questions assigned to exam, falling back to generation');
+      
       // Get the exam to determine question count, category, and distribution
       const exam = await prisma.exam.findUnique({
         where: { id: examId },
