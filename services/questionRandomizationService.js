@@ -1074,13 +1074,26 @@ class QuestionRandomizationService {
     try {
       logger.info('Getting questions for attempt', { attemptId, examId, userId });
 
-      // Get the exam to determine question count and category
+      // Get the exam to determine question count, category, and distribution
       const exam = await prisma.exam.findUnique({
         where: { id: examId },
         select: { 
           totalQuestions: true, 
           examCategoryId: true,
-          questionOverlapPercentage: true
+          questionOverlapPercentage: true,
+          // Include all question type distribution counts
+          essayQuestionsCount: true,
+          multipleChoiceQuestionsCount: true,
+          shortAnswerQuestionsCount: true,
+          fillInTheBlankQuestionsCount: true,
+          trueFalseQuestionsCount: true,
+          matchingQuestionsCount: true,
+          orderingQuestionsCount: true,
+          accountingTableQuestionsCount: true,
+          compoundChoiceQuestionsCount: true,
+          enhancedCompoundQuestionsCount: true,
+          singleChoiceQuestionsCount: true,
+          dropdownSelectQuestionsCount: true
         }
       });
 
@@ -1088,13 +1101,26 @@ class QuestionRandomizationService {
         throw new Error('Exam not found');
       }
 
-      // Generate random questions for this attempt
+      // Generate random questions for this attempt with proper distribution
       const questions = await this.generateRandomQuestions({
         examId,
         userId,
         questionCount: exam.totalQuestions || 10, // Default to 10 if not specified
         examCategoryId: exam.examCategoryId,
-        overlapPercentage: exam.questionOverlapPercentage || 10.0
+        overlapPercentage: exam.questionOverlapPercentage || 10.0,
+        // Pass the exact question type distribution from the exam
+        essayQuestionsCount: exam.essayQuestionsCount || 0,
+        multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
+        shortAnswerQuestionsCount: exam.shortAnswerQuestionsCount || 0,
+        fillInTheBlankQuestionsCount: exam.fillInTheBlankQuestionsCount || 0,
+        trueFalseQuestionsCount: exam.trueFalseQuestionsCount || 0,
+        matchingQuestionsCount: exam.matchingQuestionsCount || 0,
+        orderingQuestionsCount: exam.orderingQuestionsCount || 0,
+        accountingTableQuestionsCount: exam.accountingTableQuestionsCount || 0,
+        compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0,
+        enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0,
+        singleChoiceQuestionsCount: exam.singleChoiceQuestionsCount || 0,
+        dropdownSelectQuestionsCount: exam.dropdownSelectQuestionsCount || 0
       });
 
       return questions;
