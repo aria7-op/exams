@@ -818,6 +818,13 @@ class ExamService {
           'DROPDOWN_SELECT': exam.dropdownSelectQuestionsCount || 0
         };
         
+        // FIXED: Enhanced logging to show exactly what's expected vs what we have
+        logger.info('🔍 Distribution Analysis:', {
+          expected: expectedDistribution,
+          current: currentDistribution,
+          examId: exam.id
+        });
+        
         // Check if we're missing any question types
         const missingTypes = [];
         for (const [type, expectedCount] of Object.entries(expectedDistribution)) {
@@ -834,49 +841,59 @@ class ExamService {
         if (missingTypes.length > 0) {
           logger.warn(`⚠️ Distribution mismatch detected! Missing question types:`, missingTypes);
           
-          // If we're missing important question types, force regeneration
-          if (missingTypes.some(m => m.missing > 0)) {
-            logger.warn(`🔄 Forcing question regeneration due to distribution mismatch...`);
+          // FIXED: Always regenerate if we're missing any question types
+          logger.warn(`🔄 Forcing question regeneration due to distribution mismatch...`);
+          
+          try {
+            // Generate new questions with proper distribution
+            const newQuestions = await questionRandomizationService.generateRandomQuestions({
+              examId,
+              userId,
+              questionCount: exam.totalQuestions,
+              examCategoryId: exam.examCategoryId,
+              overlapPercentage: exam.questionOverlapPercentage || 10.0,
+              // Pass the exact question type distribution from the exam
+              essayQuestionsCount: exam.essayQuestionsCount || 0,
+              multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
+              shortAnswerQuestionsCount: exam.shortAnswerQuestionsCount || 0,
+              fillInTheBlankQuestionsCount: exam.fillInTheBlankQuestionsCount || 0,
+              trueFalseQuestionsCount: exam.trueFalseQuestionsCount || 0,
+              matchingQuestionsCount: exam.matchingQuestionsCount || 0,
+              orderingQuestionsCount: exam.orderingQuestionsCount || 0,
+              accountingTableQuestionsCount: exam.accountingTableQuestionsCount || 0,
+              compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0,
+              enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0,
+              singleChoiceQuestionsCount: exam.singleChoiceQuestionsCount || 0,
+              dropdownSelectQuestionsCount: exam.dropdownSelectQuestionsCount || 0
+            });
             
-            try {
-              // Generate new questions with proper distribution
-              const newQuestions = await questionRandomizationService.generateRandomQuestions({
-                examId,
-                userId,
-                questionCount: exam.totalQuestions,
-                examCategoryId: exam.examCategoryId,
-                overlapPercentage: exam.questionOverlapPercentage || 10.0,
-                // Pass the exact question type distribution from the exam
-                essayQuestionsCount: exam.essayQuestionsCount || 0,
-                multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
-                shortAnswerQuestionsCount: exam.shortAnswerQuestionsCount || 0,
-                fillInTheBlankQuestionsCount: exam.fillInTheBlankQuestionsCount || 0,
-                trueFalseQuestionsCount: exam.trueFalseQuestionsCount || 0,
-                matchingQuestionsCount: exam.matchingQuestionsCount || 0,
-                orderingQuestionsCount: exam.orderingQuestionsCount || 0,
-                accountingTableQuestionsCount: exam.accountingTableQuestionsCount || 0,
-                compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0,
-                enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0,
-                singleChoiceQuestionsCount: exam.singleChoiceQuestionsCount || 0,
-                dropdownSelectQuestionsCount: exam.dropdownSelectQuestionsCount || 0
-              });
+            if (newQuestions.length > 0) {
+              questions = newQuestions;
+              logger.info(`✅ Regenerated questions with proper distribution. Total: ${questions.length}/${exam.totalQuestions}`);
               
-              if (newQuestions.length > 0) {
-                questions = newQuestions;
-                logger.info(`✅ Regenerated questions with proper distribution. Total: ${questions.length}/${exam.totalQuestions}`);
-                
-                // Log the new distribution
-                const newDistribution = questions.reduce((acc, q) => {
-                  acc[q.type] = (acc[q.type] || 0) + 1;
-                  return acc;
-                }, {});
-                logger.info('🎯 New question distribution:', newDistribution);
+              // Log the new distribution
+              const newDistribution = questions.reduce((acc, q) => {
+                acc[q.type] = (acc[q.type] || 0) + 1;
+                return acc;
+              }, {});
+              logger.info('🎯 New question distribution:', newDistribution);
+              
+              // FIXED: Verify that DROPDOWN_SELECT questions are now included
+              if (exam.dropdownSelectQuestionsCount > 0) {
+                const dropdownCount = newDistribution['DROPDOWN_SELECT'] || 0;
+                if (dropdownCount > 0) {
+                  logger.info(`✅ SUCCESS: Now have ${dropdownCount} DROPDOWN_SELECT questions`);
+                } else {
+                  logger.error(`❌ FAILED: Still no DROPDOWN_SELECT questions after regeneration`);
+                }
               }
-            } catch (error) {
-              logger.error('Failed to regenerate questions:', error);
-              // Keep the original questions if regeneration fails
             }
+          } catch (error) {
+            logger.error('Failed to regenerate questions:', error);
+            // Keep the original questions if regeneration fails
           }
+        } else {
+          logger.info('✅ All expected question types are present in assigned questions');
         }
         
         // Debug: Log the questions being returned to see if options are present

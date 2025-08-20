@@ -69,7 +69,7 @@ class QuestionService {
               }]
             };
           }
-        } else if (['MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'SHORT_ANSWER', 'MATCHING', 'ORDERING', 'ACCOUNTING_TABLE', 'COMPOUND_CHOICE', 'ENHANCED_COMPOUND'].includes(type)) {
+        } else if (['MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'DROPDOWN_SELECT', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'SHORT_ANSWER', 'MATCHING', 'ORDERING', 'ACCOUNTING_TABLE', 'COMPOUND_CHOICE', 'ENHANCED_COMPOUND'].includes(type)) {
           // For SHORT_ANSWER questions, the first option should be the expected answer
           if (type === 'SHORT_ANSWER' && options.length > 0) {
             questionCreateData.options = {
@@ -77,6 +77,15 @@ class QuestionService {
                 text: options[0].text,
                 isCorrect: true
               }]
+            };
+          } else if (type === 'DROPDOWN_SELECT' && options.length > 0) {
+            // For DROPDOWN_SELECT questions, store all options with sortOrder
+            questionCreateData.options = {
+              create: options.map((option, index) => ({
+                text: option.text,
+                isCorrect: option.isCorrect,
+                sortOrder: option.sortOrder || index
+              }))
             };
           } else if (type === 'ACCOUNTING_TABLE' && options.length > 0) {
             // For ACCOUNTING_TABLE questions, store all options
