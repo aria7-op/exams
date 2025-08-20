@@ -2150,17 +2150,69 @@ class QuestionRandomizationService {
   }
 
   /**
-   * Group questions by their type
+   * Group questions by type with normalization for different type values
    */
   groupQuestionsByType(questions) {
     const grouped = {};
     
     questions.forEach(question => {
-      if (!grouped[question.type]) {
-        grouped[question.type] = [];
+      // Normalize question type to handle different possible values
+      let normalizedType = question.type;
+      
+      // Handle dropdown type variations
+      if (['dropdown_select', 'Dropdown_Select', 'DROPDOWN', 'dropdown', 'SELECT', 'select'].includes(question.type)) {
+        normalizedType = 'DROPDOWN_SELECT';
       }
-      grouped[question.type].push(question);
+      
+      // Handle other type variations if needed
+      if (['multiple_choice', 'Multiple_Choice'].includes(question.type)) {
+        normalizedType = 'MULTIPLE_CHOICE';
+      }
+      
+      if (['single_choice', 'Single_Choice'].includes(question.type)) {
+        normalizedType = 'SINGLE_CHOICE';
+      }
+      
+      if (['fill_in_the_blank', 'Fill_In_The_Blank'].includes(question.type)) {
+        normalizedType = 'FILL_IN_THE_BLANK';
+      }
+      
+      if (['true_false', 'True_False'].includes(question.type)) {
+        normalizedType = 'TRUE_FALSE';
+      }
+      
+      if (['short_answer', 'Short_Answer'].includes(question.type)) {
+        normalizedType = 'SHORT_ANSWER';
+      }
+      
+      if (['accounting_table', 'Accounting_Table'].includes(question.type)) {
+        normalizedType = 'ACCOUNTING_TABLE';
+      }
+      
+      if (['compound_choice', 'Compound_Choice'].includes(question.type)) {
+        normalizedType = 'COMPOUND_CHOICE';
+      }
+      
+      if (['enhanced_compound', 'Enhanced_Compound'].includes(question.type)) {
+        normalizedType = 'ENHANCED_COMPOUND';
+      }
+      
+      // Log type normalization for debugging
+      if (normalizedType !== question.type) {
+        logger.info(`🔄 Question type normalized: "${question.type}" → "${normalizedType}"`);
+      }
+      
+      if (!grouped[normalizedType]) {
+        grouped[normalizedType] = [];
+      }
+      grouped[normalizedType].push(question);
     });
+    
+    // Log the final grouping for debugging
+    logger.info('🔍 Questions grouped by normalized type:', Object.keys(grouped).reduce((acc, type) => {
+      acc[type] = grouped[type].length;
+      return acc;
+    }, {}));
     
     return grouped;
   }
@@ -2201,6 +2253,17 @@ class QuestionRandomizationService {
       }, {})
     });
     
+    // FIXED: Add specific logging for dropdown questions
+    if (distribution.dropdownSelectQuestionsCount > 0) {
+      const dropdownQuestions = questionsByType['DROPDOWN_SELECT'] || [];
+      logger.info('🔍 DROPDOWN_SELECT specific analysis:', {
+        requested: distribution.dropdownSelectQuestionsCount,
+        available: dropdownQuestions.length,
+        questionIds: dropdownQuestions.map(q => q.id),
+        questionTypes: dropdownQuestions.map(q => q.type) // This will show the original types before normalization
+      });
+    }
+    
     for (const { type, count } of typeOrder) {
       if (count > 0) {
         const availableQuestions = questionsByType[type] || [];
@@ -2231,6 +2294,18 @@ class QuestionRandomizationService {
         const questionsToSelect = Math.min(count, availableQuestions.length);
         
         logger.info(`🎯 Selecting ${questionsToSelect} questions of type ${type} (requested: ${count}, available: ${availableQuestions.length})`);
+        
+        // FIXED: Add specific logging for dropdown questions
+        if (type === 'DROPDOWN_SELECT') {
+          logger.info('🔍 DROPDOWN_SELECT selection details:', {
+            type,
+            requested: count,
+            available: availableQuestions.length,
+            questionsToSelect,
+            availableQuestionIds: availableQuestions.map(q => q.id),
+            availableQuestionTypes: availableQuestions.map(q => q.type)
+          });
+        }
         
         // Use ENHANCED selection that guarantees we get the exact number
         let typeQuestions = [];
