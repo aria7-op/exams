@@ -320,6 +320,12 @@ class QuestionRandomizationService {
             logger.info(`🎯 TOTAL QUESTIONS: ${selectedQuestions.length}/${questionCount}`);
           } else {
             logger.error(`🚨 CRITICAL: Not enough questions available to fill remaining slots! Need ${remainingSlots}, have ${remainingQuestions.length}`);
+            
+            // FIXED: Use all remaining questions even if not enough
+            if (remainingQuestions.length > 0) {
+              selectedQuestions.push(...remainingQuestions);
+              logger.warn(`🚨 Using all remaining ${remainingQuestions.length} questions to get closer to target`);
+            }
           }
         }
         
@@ -327,12 +333,32 @@ class QuestionRandomizationService {
         if (selectedQuestions.length !== questionCount) {
           logger.error(`🚨 CRITICAL: Final question count mismatch! Expected: ${questionCount}, Got: ${selectedQuestions.length}`);
           
-          // If we still don't have enough, this is a critical error
+          // FIXED: If we still don't have enough, try one more desperate attempt
           if (selectedQuestions.length < questionCount) {
+            logger.warn(`🚨 FINAL DESPERATE ATTEMPT: Still need ${questionCount - selectedQuestions.length} more questions`);
+            
+            // Get ALL available questions that haven't been selected yet
+            const selectedIds = new Set(selectedQuestions.map(q => q.id));
+            const allAvailableQuestions = Object.values(questionsByType).flat();
+            const remainingQuestions = allAvailableQuestions.filter(q => !selectedIds.has(q.id));
+            
+            if (remainingQuestions.length > 0) {
+              const additionalNeeded = questionCount - selectedQuestions.length;
+              const finalQuestions = remainingQuestions.slice(0, additionalNeeded);
+              selectedQuestions.push(...finalQuestions);
+              logger.warn(`🚨 FINAL: Added ${finalQuestions.length} questions from any available pool`);
+            }
+            
             logger.error(`🚨 CRITICAL: System cannot provide ${questionCount} questions. Available: ${selectedQuestions.length}`);
           }
         } else {
           logger.info(`✅ SUCCESS: Exactly ${questionCount} questions generated!`);
+        }
+        
+        // FIXED: Ensure we return exactly the requested number of questions
+        if (selectedQuestions.length > questionCount) {
+          selectedQuestions = selectedQuestions.slice(0, questionCount);
+          logger.warn(`⚠️ Truncated questions to exact count: ${questionCount}`);
         }
         
         // Return the questions with proper distribution
@@ -2295,6 +2321,27 @@ class QuestionRandomizationService {
     
     if (totalActual !== totalRequested) {
       logger.error(`🚨 CRITICAL: Question count mismatch! Expected: ${totalRequested}, Got: ${totalActual}`);
+      
+      // FIXED: Try to fill missing questions from any available pool
+      if (totalActual < totalRequested) {
+        logger.warn(`🚨 Attempting to fill missing ${totalRequested - totalActual} questions...`);
+        
+        const allAvailableQuestions = Object.values(questionsByType).flat();
+        const selectedIds = new Set(selectedQuestions.map(q => q.id));
+        const remainingQuestions = allAvailableQuestions.filter(q => !selectedIds.has(q.id));
+        
+        if (remainingQuestions.length > 0) {
+          const missingCount = totalRequested - totalActual;
+          const additionalQuestions = remainingQuestions.slice(0, missingCount);
+          
+          selectedQuestions.push(...additionalQuestions);
+          logger.warn(`🚨 FILLED: Added ${additionalQuestions.length} questions from any available pool`);
+          
+          // Update final count
+          const updatedTotal = selectedQuestions.length;
+          logger.info(`🎯 UPDATED TOTAL: ${updatedTotal}/${totalRequested} questions`);
+        }
+      }
     } else {
       logger.info(`✅ SUCCESS: Exact question count achieved!`);
     }
@@ -2331,7 +2378,7 @@ class QuestionRandomizationService {
       const remainingQuestions = allAvailableQuestions.filter(q => !selectedIds.has(q.id));
       
       if (remainingQuestions.length > 0) {
-        const missingCount = totalRequested - totalActual;
+        const missingCount = totalRequested - selectedQuestions.length;
         const additionalQuestions = remainingQuestions.slice(0, missingCount);
         
         selectedQuestions.push(...additionalQuestions);
@@ -2349,6 +2396,12 @@ class QuestionRandomizationService {
       logger.info('✅ SUCCESS: Exact question distribution achieved!');
     }
 
+    // FIXED: Final verification - ensure we return exactly the requested number
+    if (selectedQuestions.length > totalRequested) {
+      selectedQuestions = selectedQuestions.slice(0, totalRequested);
+      logger.warn(`⚠️ Truncated to exact requested count: ${totalRequested}`);
+    }
+
     return selectedQuestions;
   }
 
@@ -2359,7 +2412,7 @@ class QuestionRandomizationService {
   async fillMissingQuestions(questionsByType, distribution, actualDistribution, userId, overlapPercentage) {
     const missingQuestions = [];
     
-    // Check each question type for missing questions
+    // Check each question type for missing questions - FIXED: Now includes ALL question types
     const typeMapping = {
       'ESSAY': 'essayQuestionsCount',
       'SINGLE_CHOICE': 'singleChoiceQuestionsCount',
@@ -2375,6 +2428,16 @@ class QuestionRandomizationService {
       'ENHANCED_COMPOUND': 'enhancedCompoundQuestionsCount'
     };
 
+    // FIXED: Add logging to track what's happening during missing question filling
+    logger.info('🔍 fillMissingQuestions: Starting to fill missing questions', {
+      distribution,
+      actualDistribution,
+      questionsByTypeCounts: Object.keys(questionsByType).reduce((acc, type) => {
+        acc[type] = (questionsByType[type] || []).length;
+        return acc;
+      }, {})
+    });
+
     for (const [questionType, distributionKey] of Object.entries(typeMapping)) {
       const expectedCount = distribution[distributionKey] || 0;
       const actualCount = actualDistribution[questionType] || 0;
@@ -2384,6 +2447,7 @@ class QuestionRandomizationService {
         const availableQuestions = questionsByType[questionType] || [];
         
         logger.info(`🔍 Type ${questionType}: Need ${missingCount} more questions (have ${actualCount}, need ${expectedCount})`);
+        logger.info(`🔍 Available questions for ${questionType}: ${availableQuestions.length}`);
         
         if (availableQuestions.length > 0) {
           // Use simple random selection for missing questions (no overlap restrictions)
@@ -2395,9 +2459,24 @@ class QuestionRandomizationService {
           logger.info(`✅ Added ${additionalQuestions.length} missing questions for type ${questionType}`);
         } else {
           logger.warn(`❌ No questions available for type ${questionType} to fill missing count`);
+          
+          // FIXED: Try to find questions from other available types as a last resort
+          const allAvailableQuestions = Object.values(questionsByType).flat();
+          if (allAvailableQuestions.length > 0) {
+            logger.warn(`🔄 Attempting to fill ${questionType} with questions from other types...`);
+            const alternativeQuestions = allAvailableQuestions.slice(0, missingCount);
+            missingQuestions.push(...alternativeQuestions);
+            logger.warn(`🔄 Added ${alternativeQuestions.length} alternative questions for type ${questionType}`);
+          }
         }
       }
     }
+
+    // FIXED: Add final verification logging
+    logger.info('🔍 fillMissingQuestions: Final result', {
+      missingQuestionsCount: missingQuestions.length,
+      missingQuestionsTypes: missingQuestions.map(q => q.type)
+    });
 
     return missingQuestions;
   }

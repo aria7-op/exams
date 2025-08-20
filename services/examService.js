@@ -755,6 +755,48 @@ class ExamService {
         // Use the questions already assigned to this exam
         questions = assignedQuestions.map(eq => eq.question);
         
+        // FIXED: Check if we have the exact number of questions requested
+        if (questions.length !== exam.totalQuestions) {
+          logger.warn(`⚠️ Assigned questions count mismatch! Expected: ${exam.totalQuestions}, Got: ${questions.length}`);
+          
+          // If we have fewer questions than expected, try to get more
+          if (questions.length < exam.totalQuestions) {
+            logger.info(`🔄 Attempting to get additional questions to reach ${exam.totalQuestions}...`);
+            
+            // Try to get additional questions via randomization service
+            try {
+              const additionalQuestions = await questionRandomizationService.generateRandomQuestions({
+                examId,
+                userId,
+                questionCount: exam.totalQuestions - questions.length,
+                examCategoryId: exam.examCategoryId,
+                overlapPercentage: exam.questionOverlapPercentage || 10.0,
+                // Pass the exact question type distribution from the exam
+                essayQuestionsCount: exam.essayQuestionsCount || 0,
+                multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
+                shortAnswerQuestionsCount: exam.shortAnswerQuestionsCount || 0,
+                fillInTheBlankQuestionsCount: exam.fillInTheBlankQuestionsCount || 0,
+                trueFalseQuestionsCount: exam.trueFalseQuestionsCount || 0,
+                matchingQuestionsCount: exam.matchingQuestionsCount || 0,
+                orderingQuestionsCount: exam.orderingQuestionsCount || 0,
+                accountingTableQuestionsCount: exam.accountingTableQuestionsCount || 0,
+                compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0,
+                enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0,
+                singleChoiceQuestionsCount: exam.singleChoiceQuestionsCount || 0,
+                dropdownSelectQuestionsCount: exam.dropdownSelectQuestionsCount || 0
+              });
+              
+              if (additionalQuestions.length > 0) {
+                // Add additional questions to existing ones
+                questions.push(...additionalQuestions);
+                logger.info(`✅ Added ${additionalQuestions.length} additional questions. Total: ${questions.length}/${exam.totalQuestions}`);
+              }
+            } catch (error) {
+              logger.warn('Failed to get additional questions:', error);
+            }
+          }
+        }
+        
         // Debug: Log the questions being returned to see if options are present
         logger.info('🔍 DEBUG: Questions retrieved from exam_questions table:', {
           examId,
@@ -842,6 +884,54 @@ class ExamService {
           return acc;
         }, {})
       });
+
+      // FIXED: Final verification - ensure we have exactly the requested number of questions
+      if (questions.length !== exam.totalQuestions) {
+        logger.warn(`⚠️ FINAL WARNING: Question count still doesn't match! Expected: ${exam.totalQuestions}, Got: ${questions.length}`);
+        
+        // If we have more questions than needed, truncate
+        if (questions.length > exam.totalQuestions) {
+          questions = questions.slice(0, exam.totalQuestions);
+          logger.warn(`⚠️ Truncated questions to exact count: ${exam.totalQuestions}`);
+        }
+        
+        // If we have fewer questions than needed, this is a critical issue
+        if (questions.length < exam.totalQuestions) {
+          logger.error(`🚨 CRITICAL: Cannot provide ${exam.totalQuestions} questions. Only have ${questions.length} available.`);
+          
+          // Try one last desperate attempt to get more questions
+          try {
+            const remainingCount = exam.totalQuestions - questions.length;
+            logger.warn(`🚨 FINAL DESPERATE ATTEMPT: Trying to get ${remainingCount} more questions...`);
+            
+            // Get any available questions from the category
+            const anyQuestions = await prisma.question.findMany({
+              where: {
+                examCategoryId: exam.examCategoryId,
+                isActive: true
+              },
+              take: remainingCount * 2, // Get more than needed to have options
+              orderBy: { createdAt: 'desc' }
+            });
+            
+            if (anyQuestions.length > 0) {
+              const selectedIds = new Set(questions.map(q => q.id));
+              const additionalQuestions = anyQuestions
+                .filter(q => !selectedIds.has(q.id))
+                .slice(0, remainingCount);
+              
+              if (additionalQuestions.length > 0) {
+                questions.push(...additionalQuestions);
+                logger.warn(`🚨 FINAL: Added ${additionalQuestions.length} questions from any available pool`);
+              }
+            }
+          } catch (error) {
+            logger.error('Final desperate attempt failed:', error);
+          }
+        }
+      } else {
+        logger.info(`✅ SUCCESS: Exactly ${exam.totalQuestions} questions retrieved!`);
+      }
 
       // Create exam attempt
       const attempt = await prisma.examAttempt.create({
