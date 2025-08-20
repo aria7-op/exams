@@ -797,6 +797,88 @@ class ExamService {
           }
         }
         
+        // FIXED: Check if the assigned questions match the expected distribution
+        const currentDistribution = questions.reduce((acc, q) => {
+          acc[q.type] = (acc[q.type] || 0) + 1;
+          return acc;
+        }, {});
+        
+        const expectedDistribution = {
+          'ESSAY': exam.essayQuestionsCount || 0,
+          'MULTIPLE_CHOICE': exam.multipleChoiceQuestionsCount || 0,
+          'SHORT_ANSWER': exam.shortAnswerQuestionsCount || 0,
+          'FILL_IN_THE_BLANK': exam.fillInTheBlankQuestionsCount || 0,
+          'TRUE_FALSE': exam.trueFalseQuestionsCount || 0,
+          'MATCHING': exam.matchingQuestionsCount || 0,
+          'ORDERING': exam.orderingQuestionsCount || 0,
+          'ACCOUNTING_TABLE': exam.accountingTableQuestionsCount || 0,
+          'COMPOUND_CHOICE': exam.compoundChoiceQuestionsCount || 0,
+          'ENHANCED_COMPOUND': exam.enhancedCompoundQuestionsCount || 0,
+          'SINGLE_CHOICE': exam.singleChoiceQuestionsCount || 0,
+          'DROPDOWN_SELECT': exam.dropdownSelectQuestionsCount || 0
+        };
+        
+        // Check if we're missing any question types
+        const missingTypes = [];
+        for (const [type, expectedCount] of Object.entries(expectedDistribution)) {
+          if (expectedCount > 0 && (currentDistribution[type] || 0) < expectedCount) {
+            missingTypes.push({
+              type,
+              expected: expectedCount,
+              actual: currentDistribution[type] || 0,
+              missing: expectedCount - (currentDistribution[type] || 0)
+            });
+          }
+        }
+        
+        if (missingTypes.length > 0) {
+          logger.warn(`⚠️ Distribution mismatch detected! Missing question types:`, missingTypes);
+          
+          // If we're missing important question types, force regeneration
+          if (missingTypes.some(m => m.missing > 0)) {
+            logger.warn(`🔄 Forcing question regeneration due to distribution mismatch...`);
+            
+            try {
+              // Generate new questions with proper distribution
+              const newQuestions = await questionRandomizationService.generateRandomQuestions({
+                examId,
+                userId,
+                questionCount: exam.totalQuestions,
+                examCategoryId: exam.examCategoryId,
+                overlapPercentage: exam.questionOverlapPercentage || 10.0,
+                // Pass the exact question type distribution from the exam
+                essayQuestionsCount: exam.essayQuestionsCount || 0,
+                multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
+                shortAnswerQuestionsCount: exam.shortAnswerQuestionsCount || 0,
+                fillInTheBlankQuestionsCount: exam.fillInTheBlankQuestionsCount || 0,
+                trueFalseQuestionsCount: exam.trueFalseQuestionsCount || 0,
+                matchingQuestionsCount: exam.matchingQuestionsCount || 0,
+                orderingQuestionsCount: exam.orderingQuestionsCount || 0,
+                accountingTableQuestionsCount: exam.accountingTableQuestionsCount || 0,
+                compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0,
+                enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0,
+                singleChoiceQuestionsCount: exam.singleChoiceQuestionsCount || 0,
+                dropdownSelectQuestionsCount: exam.dropdownSelectQuestionsCount || 0
+              });
+              
+              if (newQuestions.length > 0) {
+                questions = newQuestions;
+                logger.info(`✅ Regenerated questions with proper distribution. Total: ${questions.length}/${exam.totalQuestions}`);
+                
+                // Log the new distribution
+                const newDistribution = questions.reduce((acc, q) => {
+                  acc[q.type] = (acc[q.type] || 0) + 1;
+                  return acc;
+                }, {});
+                logger.info('🎯 New question distribution:', newDistribution);
+              }
+            } catch (error) {
+              logger.error('Failed to regenerate questions:', error);
+              // Keep the original questions if regeneration fails
+            }
+          }
+        }
+        
         // Debug: Log the questions being returned to see if options are present
         logger.info('🔍 DEBUG: Questions retrieved from exam_questions table:', {
           examId,
