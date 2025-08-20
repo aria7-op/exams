@@ -639,30 +639,7 @@ class ExamService {
     try {
       const exam = await prisma.exam.findUnique({
         where: { id: examId },
-        select: {
-          id: true,
-          title: true,
-          duration: true,
-          totalQuestions: true,
-          questionOverlapPercentage: true,
-          examCategoryId: true,
-          isActive: true,
-          maxRetakes: true,
-          instructions: true,
-          rules: true,
-          // Question type distribution fields
-          essayQuestionsCount: true,
-          singleChoiceQuestionsCount: true,
-          multipleChoiceQuestionsCount: true,
-          shortAnswerQuestionsCount: true,
-          fillInTheBlankQuestionsCount: true,
-          trueFalseQuestionsCount: true,
-          matchingQuestionsCount: true,
-          orderingQuestionsCount: true,
-          accountingTableQuestionsCount: true,
-          compoundChoiceQuestionsCount: true,
-          enhancedCompoundQuestionsCount: true,
-          dropdownSelectQuestionsCount: true,
+        include: {
           examCategory: true
         }
       });
@@ -703,11 +680,12 @@ class ExamService {
           matching: exam.matchingQuestionsCount,
           ordering: exam.orderingQuestionsCount,
           accountingTable: exam.accountingTableQuestionsCount,
-          compoundChoice: exam.compoundChoiceQuestionsCount
+          compoundChoice: exam.compoundChoiceQuestionsCount,
+          enhancedCompound: exam.enhancedCompoundQuestionsCount
         }
       });
       
-      // Use the question randomization service to get questions with proper distribution
+      // Use the question randomization service to get questions with proper distributioan
       const questions = await questionRandomizationService.generateRandomQuestions({
         examId,
         userId,
@@ -716,7 +694,6 @@ class ExamService {
         overlapPercentage: exam.questionOverlapPercentage || 10.0,
         // Pass the exact question type distribution from the exam
         essayQuestionsCount: exam.essayQuestionsCount || 0,
-        singleChoiceQuestionsCount: exam.singleChoiceQuestionsCount || 0,
         multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
         shortAnswerQuestionsCount: exam.shortAnswerQuestionsCount || 0,
         fillInTheBlankQuestionsCount: exam.fillInTheBlankQuestionsCount || 0,
@@ -725,8 +702,7 @@ class ExamService {
         orderingQuestionsCount: exam.orderingQuestionsCount || 0,
         accountingTableQuestionsCount: exam.accountingTableQuestionsCount || 0,
         compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0,
-        enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0,
-        dropdownSelectQuestionsCount: exam.dropdownSelectQuestionsCount || 0
+        enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0
       });
       
       logger.info('Questions generated with distribution', {

@@ -64,9 +64,22 @@ class ExamBookingController {
       logger.info('Exam details retrieved:', {
         examId: exam.id,
         title: exam.title,
+        totalQuestions: exam.totalQuestions,
         questionCount: exam.questions.length,
         isActive: exam.isActive,
-        isPublic: exam.isPublic
+        isPublic: exam.isPublic,
+        questionDistribution: {
+          essay: exam.essayQuestionsCount,
+          multipleChoice: exam.multipleChoiceQuestionsCount,
+          shortAnswer: exam.shortAnswerQuestionsCount,
+          fillInTheBlank: exam.fillInTheBlankQuestionsCount,
+          trueFalse: exam.trueFalseQuestionsCount,
+          matching: exam.matchingQuestionsCount,
+          ordering: exam.orderingQuestionsCount,
+          accountingTable: exam.accountingTableQuestionsCount,
+          compoundChoice: exam.compoundChoiceQuestionsCount,
+          enhancedCompound: exam.enhancedCompoundQuestionsCount
+        }
       });
 
       // Check if exam is available for booking
@@ -121,10 +134,10 @@ class ExamBookingController {
         });
 
         // Generate randomized questions for this specific booking
-        const questionCount = exam.questions.length;
+        const questionCount = exam.totalQuestions || 10; // Use configured total, not assigned questions
         
         if (questionCount === 0) {
-          logger.warn(`Exam ${examId} has no questions assigned. Creating booking without questions.`);
+          logger.warn(`Exam ${examId} has no questions configured. Creating booking without questions.`);
         } else {
           logger.info(`Generating ${questionCount} randomized questions for exam ${examId}`);
           
@@ -136,7 +149,6 @@ class ExamBookingController {
             overlapPercentage: exam.questionOverlapPercentage,
             // Pass the exact question type distribution from the exam
             essayQuestionsCount: exam.essayQuestionsCount || 0,
-            singleChoiceQuestionsCount: exam.singleChoiceQuestionsCount || 0,
             multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
             shortAnswerQuestionsCount: exam.shortAnswerQuestionsCount || 0,
             fillInTheBlankQuestionsCount: exam.fillInTheBlankQuestionsCount || 0,
@@ -145,8 +157,7 @@ class ExamBookingController {
             orderingQuestionsCount: exam.orderingQuestionsCount || 0,
             accountingTableQuestionsCount: exam.accountingTableQuestionsCount || 0,
             compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0,
-            enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0,
-            dropdownSelectQuestionsCount: exam.dropdownSelectQuestionsCount || 0
+            enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0
           });
 
           if (!randomizedQuestions || randomizedQuestions.length === 0) {
@@ -750,13 +761,24 @@ class ExamBookingController {
         });
 
         // Generate randomized questions for this specific booking
-        const questionCount = exam.questions.length;
+        const questionCount = exam.totalQuestions || 10; // Use configured total, not assigned questions
         const randomizedQuestions = await questionRandomizationService.generateRandomQuestions({
           examId,
           userId,
           questionCount,
           examCategoryId: exam.examCategoryId,
-          overlapPercentage: exam.questionOverlapPercentage
+          overlapPercentage: exam.questionOverlapPercentage,
+          // Pass the exact question type distribution from the exam
+          essayQuestionsCount: exam.essayQuestionsCount || 0,
+          multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
+          shortAnswerQuestionsCount: exam.shortAnswerQuestionsCount || 0,
+          fillInTheBlankQuestionsCount: exam.fillInTheBlankQuestionsCount || 0,
+          trueFalseQuestionsCount: exam.trueFalseQuestionsCount || 0,
+          matchingQuestionsCount: exam.matchingQuestionsCount || 0,
+          orderingQuestionsCount: exam.orderingQuestionsCount || 0,
+          accountingTableQuestionsCount: exam.accountingTableQuestionsCount || 0,
+          compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0,
+          enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0
         });
 
         // Create exam questions for this booking with randomization
@@ -809,13 +831,6 @@ class ExamBookingController {
         if (global.notificationService) {
           await global.notificationService.notifyBookingConfirmed(booking);
           logger.info(`🔔 Sent real-time booking confirmation notification to user ${userId}`);
-
-          // Admin/moderator broadcast for booking created
-          try {
-            await global.notificationService.notifyAdminsBookingCreated(booking);
-          } catch (adminNotifyErr) {
-            logger.warn('Failed to notify admins about booking created:', adminNotifyErr);
-          }
         }
         
         // Also send email notification as fallback
@@ -835,7 +850,7 @@ class ExamBookingController {
       // Log the booking creation
       logger.logExam('ADMIN_BOOKING_CREATED', examId, userId, {
         bookingId: booking.id,
-        questionCount: exam.questions.length,
+        questionCount: exam.totalQuestions || 0,
         totalAmount: booking.totalAmount,
         adminId: adminId
       });
