@@ -78,17 +78,15 @@ class QuestionRandomizationService {
       overlapPercentage = 10.0,
       // Question type distribution
       essayQuestionsCount = 0,
-      singleChoiceQuestionsCount = 0,
       multipleChoiceQuestionsCount = 0,
       shortAnswerQuestionsCount = 0,
       fillInTheBlankQuestionsCount = 0,
       trueFalseQuestionsCount = 0,
       matchingQuestionsCount = 0,
       orderingQuestionsCount = 0,
-      accountingTableQuestionsCount = 0,
-      compoundChoiceQuestionsCount = 0,
-      enhancedCompoundQuestionsCount = 0,
-      dropdownSelectQuestionsCount = 0
+              accountingTableQuestionsCount = 0,
+        compoundChoiceQuestionsCount = 0,
+        enhancedCompoundQuestionsCount = 0
     } = params;
 
     try {
@@ -98,7 +96,8 @@ class QuestionRandomizationService {
         questionCount,
         examCategoryId,
         overlapPercentage,
-        algorithm: this.algorithm
+        algorithm: this.algorithm,
+        overlapLimit: Math.floor(questionCount * (overlapPercentage / 100))
       });
 
       // Get all available questions for the exam category
@@ -132,7 +131,6 @@ class QuestionRandomizationService {
         questionsByType,
         {
           essayQuestionsCount,
-          singleChoiceQuestionsCount,
           multipleChoiceQuestionsCount,
           shortAnswerQuestionsCount,
           fillInTheBlankQuestionsCount,
@@ -141,8 +139,7 @@ class QuestionRandomizationService {
           orderingQuestionsCount,
           accountingTableQuestionsCount,
           compoundChoiceQuestionsCount,
-          enhancedCompoundQuestionsCount,
-          dropdownSelectQuestionsCount
+          enhancedCompoundQuestionsCount
         },
         userId,
         overlapPercentage
@@ -156,7 +153,6 @@ class QuestionRandomizationService {
         }, {}),
         requestedDistribution: {
           essay: essayQuestionsCount,
-          singleChoice: singleChoiceQuestionsCount,
           multipleChoice: multipleChoiceQuestionsCount,
           shortAnswer: shortAnswerQuestionsCount,
           fillInTheBlank: fillInTheBlankQuestionsCount,
@@ -165,14 +161,12 @@ class QuestionRandomizationService {
           ordering: orderingQuestionsCount,
           accountingTable: accountingTableQuestionsCount,
           compoundChoice: compoundChoiceQuestionsCount,
-          enhancedCompound: enhancedCompoundQuestionsCount,
-          dropdownSelect: dropdownSelectQuestionsCount
+          enhancedCompound: enhancedCompoundQuestionsCount
         }
       });
 
       // Check if we have a specific question type distribution
       const hasTypeDistribution = essayQuestionsCount > 0 || 
-                                 singleChoiceQuestionsCount > 0 ||
                                  multipleChoiceQuestionsCount > 0 || 
                                  shortAnswerQuestionsCount > 0 || 
                                  fillInTheBlankQuestionsCount > 0 || 
@@ -181,16 +175,15 @@ class QuestionRandomizationService {
                                  orderingQuestionsCount > 0 ||
                                  accountingTableQuestionsCount > 0 ||
                                  compoundChoiceQuestionsCount > 0 ||
-                                 enhancedCompoundQuestionsCount > 0 ||
-                                 dropdownSelectQuestionsCount > 0;
+                                 enhancedCompoundQuestionsCount > 0;
 
       if (hasTypeDistribution && selectedQuestions.length > 0) {
         // Verify we got the expected total count
-              const expectedTotal = essayQuestionsCount + singleChoiceQuestionsCount + multipleChoiceQuestionsCount + 
+              const expectedTotal = essayQuestionsCount + multipleChoiceQuestionsCount + 
                            shortAnswerQuestionsCount + fillInTheBlankQuestionsCount + 
                            trueFalseQuestionsCount + matchingQuestionsCount + 
                            orderingQuestionsCount + accountingTableQuestionsCount + 
-                           compoundChoiceQuestionsCount + enhancedCompoundQuestionsCount + dropdownSelectQuestionsCount;
+                           compoundChoiceQuestionsCount + enhancedCompoundQuestionsCount;
         
         if (selectedQuestions.length !== expectedTotal) {
           logger.warn(`⚠️ Question count mismatch! Expected ${expectedTotal}, got ${selectedQuestions.length}`);
@@ -204,7 +197,6 @@ class QuestionRandomizationService {
           
           logger.warn('📊 Actual vs Expected Distribution:', {
             essay: { expected: essayQuestionsCount, actual: actualDistribution['ESSAY'] || 0 },
-            singleChoice: { expected: singleChoiceQuestionsCount, actual: actualDistribution['SINGLE_CHOICE'] || 0 },
             multipleChoice: { expected: multipleChoiceQuestionsCount, actual: actualDistribution['MULTIPLE_CHOICE'] || 0 },
             shortAnswer: { expected: shortAnswerQuestionsCount, actual: actualDistribution['SHORT_ANSWER'] || 0 },
             fillInTheBlank: { expected: fillInTheBlankQuestionsCount, actual: actualDistribution['FILL_IN_THE_BLANK'] || 0 },
@@ -213,8 +205,7 @@ class QuestionRandomizationService {
             ordering: { expected: orderingQuestionsCount, actual: actualDistribution['ORDERING'] || 0 },
             accountingTable: { expected: accountingTableQuestionsCount, actual: actualDistribution['ACCOUNTING_TABLE'] || 0 },
             compoundChoice: { expected: compoundChoiceQuestionsCount, actual: actualDistribution['COMPOUND_CHOICE'] || 0 },
-            enhancedCompound: { expected: enhancedCompoundQuestionsCount, actual: actualDistribution['ENHANCED_COMPOUND'] || 0 },
-            dropdownSelect: { expected: dropdownSelectQuestionsCount, actual: actualDistribution['DROPDOWN_SELECT'] || 0 }
+            enhancedCompound: { expected: enhancedCompoundQuestionsCount, actual: actualDistribution['ENHANCED_COMPOUND'] || 0 }
           });
           
           // CRITICAL: Try to fill missing questions with fallback selection
@@ -224,7 +215,6 @@ class QuestionRandomizationService {
             questionsByType,
             {
               essayQuestionsCount,
-              singleChoiceQuestionsCount,
               multipleChoiceQuestionsCount,
               shortAnswerQuestionsCount,
               fillInTheBlankQuestionsCount,
@@ -233,8 +223,7 @@ class QuestionRandomizationService {
               orderingQuestionsCount,
               accountingTableQuestionsCount,
               compoundChoiceQuestionsCount,
-              enhancedCompoundQuestionsCount,
-              dropdownSelectQuestionsCount
+              enhancedCompoundQuestionsCount
             },
             actualDistribution,
             userId,
@@ -255,6 +244,29 @@ class QuestionRandomizationService {
           }
         } else {
           logger.info(`✅ Perfect! Got exactly ${expectedTotal} questions with correct distribution`);
+        }
+        
+        // CRITICAL: Final verification - ensure we have the exact number requested
+        if (selectedQuestions.length !== expectedTotal) {
+          logger.error(`🚨 CRITICAL: Still missing questions after all fallbacks! Expected: ${expectedTotal}, Got: ${selectedQuestions.length}`);
+          
+          // Final desperate attempt: take any available questions to meet the count
+          const allAvailableQuestions = Object.values(questionsByType).flat();
+          const missingCount = expectedTotal - selectedQuestions.length;
+          
+          if (missingCount > 0 && allAvailableQuestions.length > 0) {
+            // Get questions that haven't been selected yet
+            const selectedIds = new Set(selectedQuestions.map(q => q.id));
+            const remainingQuestions = allAvailableQuestions.filter(q => !selectedIds.has(q.id));
+            
+            if (remainingQuestions.length >= missingCount) {
+              const finalQuestions = remainingQuestions.slice(0, missingCount);
+              selectedQuestions.push(...finalQuestions);
+              logger.info(`🚨 FINAL FALLBACK: Added ${finalQuestions.length} questions to meet requirement`);
+            } else {
+              logger.error(`🚨 CRITICAL: Not enough questions in pool to meet requirement!`);
+            }
+          }
         }
         
         // Return the questions with proper distribution
@@ -365,6 +377,22 @@ class QuestionRandomizationService {
               adjustedQuestionCount,
               overlapPercentage
             );
+        }
+      }
+
+      // CRITICAL: Final verification - ensure we have the requested number of questions
+      if (selectedQuestions.length < questionCount) {
+        logger.warn(`⚠️ Still short ${questionCount - selectedQuestions.length} questions. Using final fallback...`);
+        
+        // Get questions that haven't been selected yet
+        const selectedIds = new Set(selectedQuestions.map(q => q.id));
+        const remainingQuestions = availableQuestions.filter(q => !selectedIds.has(q.id));
+        
+        if (remainingQuestions.length > 0) {
+          const additionalNeeded = questionCount - selectedQuestions.length;
+          const finalQuestions = remainingQuestions.slice(0, additionalNeeded);
+          selectedQuestions.push(...finalQuestions);
+          logger.info(`🚨 FINAL FALLBACK: Added ${finalQuestions.length} questions to meet requirement`);
         }
       }
 
@@ -703,14 +731,33 @@ class QuestionRandomizationService {
    */
   selectWithOverlapControl(questions, weights, count, userHistory, maxOverlap) {
     const selectedQuestions = [];
-    const maxOverlapCount = Math.floor(count * (maxOverlap / 100));
+    
+    // Dynamic overlap adjustment for large question counts
+    let effectiveMaxOverlap = maxOverlap;
+    let maxOverlapCount = Math.floor(count * (maxOverlap / 100));
+    
+    // If we have a large number of questions and strict overlap, be more flexible
+    if (count > 20 && maxOverlap < 20) {
+      const userHistorySize = userHistory.size;
+      if (userHistorySize > count * 0.5) { // If user has attempted more than 50% of the questions
+        effectiveMaxOverlap = Math.min(50, maxOverlap * 2); // Double the overlap limit, max 50%
+        maxOverlapCount = Math.floor(count * (effectiveMaxOverlap / 100));
+        logger.warn(`🔄 Adjusting overlap limit: ${maxOverlap}% → ${effectiveMaxOverlap}% (max ${maxOverlapCount} overlapping) due to large question count and user history`);
+      }
+    }
+    
     let overlapCount = 0;
+    
+    logger.info(`🔍 selectWithOverlapControl: Requesting ${count} questions with ${effectiveMaxOverlap}% overlap limit (max ${maxOverlapCount} overlapping)`);
+    logger.info(`🔍 Available questions: ${questions.length}, User history size: ${userHistory.size}`);
 
     // Create a copy of questions and weights for selection
     const questionPool = [...questions];
     const weightPool = [...weights];
 
     // First pass: Try to select questions within overlap limits
+    logger.info(`🔍 Starting first pass: Need ${count} questions, pool has ${questionPool.length} questions`);
+    
     while (selectedQuestions.length < count && questionPool.length > 0) {
       // Calculate total weight
       const totalWeight = weightPool.reduce((sum, weight) => sum + weight, 0);
@@ -732,12 +779,21 @@ class QuestionRandomizationService {
       const selectedQuestion = questionPool[selectedIndex];
       const isOverlap = userHistory.has(selectedQuestion.id);
 
-      // Check overlap limit
+      // Check overlap limit - but be more flexible for large question counts
       if (isOverlap && overlapCount >= maxOverlapCount) {
+        logger.debug(`⚠️ Skipping overlapping question ${selectedQuestion.id} (overlap count: ${overlapCount}/${maxOverlapCount})`);
         // Remove this question from pool and continue
         questionPool.splice(selectedIndex, 1);
         weightPool.splice(selectedIndex, 1);
         continue;
+      }
+      
+      // Check if we're running out of non-overlapping questions
+      const remainingNonOverlapping = questionPool.filter(q => !userHistory.has(q.id)).length;
+      if (remainingNonOverlapping === 0 && overlapCount < maxOverlapCount) {
+        logger.warn(`⚠️ No more non-overlapping questions available. Allowing more overlap...`);
+        // Reset overlap count to allow more overlapping questions
+        overlapCount = 0;
       }
 
       // Add question to selection
@@ -751,7 +807,11 @@ class QuestionRandomizationService {
 
     // Second pass: If we still don't have enough questions, be more aggressive
     if (selectedQuestions.length < count && questionPool.length > 0) {
-      logger.warn(`⚠️ Overlap limit too strict. Need ${count - selectedQuestions.length} more questions. Relaxing constraints...`);
+      logger.warn(`⚠️ Overlap limit too strict. Need ${count - selectedQuestions.length} more questions. Pool has ${questionPool.length} questions left. Relaxing constraints...`);
+      
+      // Check if overlap limit is the problem
+      const overlappingQuestionsInPool = questionPool.filter(q => userHistory.has(q.id)).length;
+      logger.warn(`🔍 Pool analysis: ${questionPool.length} total questions, ${overlappingQuestionsInPool} overlapping with user history`);
       
       // Sort remaining questions by weight (highest first)
       const remainingQuestions = questionPool.map((q, i) => ({ question: q, weight: weightPool[i], index: i }));
@@ -766,11 +826,38 @@ class QuestionRandomizationService {
       logger.info(`✅ Added ${additionalQuestions.length} additional questions to meet requirement`);
     }
 
+    // CRITICAL FIX: Third pass - if still short, ignore overlap completely
+    if (selectedQuestions.length < count && questionPool.length > 0) {
+      logger.warn(`🚨 CRITICAL: Still need ${count - selectedQuestions.length} more questions. Ignoring overlap completely...`);
+      
+      // Take any remaining questions to meet the count requirement
+      const additionalNeeded = count - selectedQuestions.length;
+      const additionalQuestions = questionPool.slice(0, additionalNeeded);
+      
+      selectedQuestions.push(...additionalQuestions);
+      
+      logger.info(`✅ Added ${additionalQuestions.length} additional questions (ignoring overlap)`);
+    }
+    
+    // FINAL DESPERATE ATTEMPT: If still short and we have overlapping questions, use them
+    if (selectedQuestions.length < count && questionPool.length > 0) {
+      logger.error(`🚨 FINAL DESPERATE ATTEMPT: Still need ${count - selectedQuestions.length} more questions. Using overlapping questions...`);
+      
+      // Take any remaining questions, even if they overlap
+      const additionalNeeded = count - selectedQuestions.length;
+      const additionalQuestions = questionPool.slice(0, additionalNeeded);
+      
+      selectedQuestions.push(...additionalQuestions);
+      
+      logger.info(`🚨 FINAL: Added ${additionalQuestions.length} overlapping questions to meet requirement`);
+    }
+
     // Final verification
     if (selectedQuestions.length < count) {
       logger.warn(`⚠️ Still short ${count - selectedQuestions.length} questions. This may indicate insufficient question pool.`);
     }
 
+    logger.info(`🎯 Final question selection: ${selectedQuestions.length}/${count} questions selected`);
     return selectedQuestions;
   }
 
@@ -1807,6 +1894,14 @@ class QuestionRandomizationService {
     const availableQuestionsByType = {};
     let totalAvailableQuestions = 0;
     
+    logger.info('🔍 Question type distribution analysis:', {
+      requestedDistribution: distribution,
+      availableQuestionsByType: Object.keys(questionsByType).reduce((acc, type) => {
+        acc[type] = (questionsByType[type] || []).length;
+        return acc;
+      }, {})
+    });
+    
     for (const { type, count } of typeOrder) {
       if (count > 0) {
         const availableQuestions = questionsByType[type] || [];
@@ -1843,11 +1938,15 @@ class QuestionRandomizationService {
         let attempts = 0;
         const maxAttempts = 5; // Prevent infinite loops
         
+        logger.info(`🎯 Starting selection for ${type}: Need ${questionsToSelect} questions, have ${availableQuestions.length} available`);
+        
         while (typeQuestions.length < questionsToSelect && attempts < maxAttempts) {
           attempts++;
           
           // Try with reduced overlap percentage if we're not getting enough questions
           const currentOverlapPercentage = attempts > 1 ? Math.max(5, overlapPercentage * 0.5) : overlapPercentage;
+          
+          logger.info(`🔄 Attempt ${attempts}: Trying to get ${questionsToSelect} questions with ${currentOverlapPercentage}% overlap limit`);
           
           typeQuestions = await this.weightedRandomSelection(
             availableQuestions,
@@ -1869,6 +1968,16 @@ class QuestionRandomizationService {
         // Ensure we have the exact number requested (or all available if less)
         if (typeQuestions.length > questionsToSelect) {
           typeQuestions = typeQuestions.slice(0, questionsToSelect);
+        }
+        
+        // CRITICAL: Verify we actually got questions
+        if (typeQuestions.length === 0) {
+          logger.error(`❌ CRITICAL: No questions selected for type ${type} despite having ${availableQuestions.length} available!`);
+          
+          // Emergency fallback: take any available questions
+          const emergencyQuestions = availableQuestions.slice(0, questionsToSelect);
+          typeQuestions = emergencyQuestions;
+          logger.warn(`🚨 EMERGENCY: Using ${emergencyQuestions.length} emergency questions for type ${type}`);
         }
         
         selectedQuestions.push(...typeQuestions);
@@ -1894,7 +2003,6 @@ class QuestionRandomizationService {
     logger.info('🎯 Final question distribution achieved:', finalDistribution);
     logger.info('📊 Distribution verification:', {
       essay: { requested: distribution.essayQuestionsCount, actual: finalDistribution['ESSAY'] || 0 },
-      singleChoice: { requested: distribution.singleChoiceQuestionsCount, actual: finalDistribution['SINGLE_CHOICE'] || 0 },
       multipleChoice: { requested: distribution.multipleChoiceQuestionsCount, actual: finalDistribution['MULTIPLE_CHOICE'] || 0 },
       shortAnswer: { requested: distribution.shortAnswerQuestionsCount, actual: finalDistribution['SHORT_ANSWER'] || 0 },
       fillInTheBlank: { requested: distribution.fillInTheBlankQuestionsCount, actual: finalDistribution['FILL_IN_THE_BLANK'] || 0 },
@@ -1903,8 +2011,7 @@ class QuestionRandomizationService {
       ordering: { requested: distribution.orderingQuestionsCount, actual: finalDistribution['ORDERING'] || 0 },
       accountingTable: { requested: distribution.accountingTableQuestionsCount, actual: finalDistribution['ACCOUNTING_TABLE'] || 0 },
       compoundChoice: { requested: distribution.compoundChoiceQuestionsCount, actual: finalDistribution['COMPOUND_CHOICE'] || 0 },
-      enhancedCompound: { requested: distribution.enhancedCompoundQuestionsCount, actual: finalDistribution['ENHANCED_COMPOUND'] || 0 },
-      dropdownSelect: { requested: distribution.dropdownSelectQuestionsCount, actual: finalDistribution['DROPDOWN_SELECT'] || 0 }
+      enhancedCompound: { requested: distribution.enhancedCompoundQuestionsCount, actual: finalDistribution['ENHANCED_COMPOUND'] || 0 }
     });
 
     // CRITICAL: Ensure we have the exact distribution requested
@@ -1918,7 +2025,6 @@ class QuestionRandomizationService {
       logger.error('❌ CRITICAL: Question distribution mismatch detected!');
       logger.error('Expected vs Actual:', {
         essay: { expected: distribution.essayQuestionsCount, actual: finalDistribution['ESSAY'] || 0 },
-        singleChoice: { expected: distribution.singleChoiceQuestionsCount, actual: finalDistribution['SINGLE_CHOICE'] || 0 },
         multipleChoice: { expected: distribution.multipleChoiceQuestionsCount, actual: finalDistribution['MULTIPLE_CHOICE'] || 0 },
         shortAnswer: { expected: distribution.shortAnswerQuestionsCount, actual: finalDistribution['SHORT_ANSWER'] || 0 },
         fillInTheBlank: { expected: distribution.fillInTheBlankQuestionsCount, actual: finalDistribution['FILL_IN_THE_BLANK'] || 0 },
@@ -1927,8 +2033,7 @@ class QuestionRandomizationService {
         ordering: { expected: distribution.orderingQuestionsCount, actual: finalDistribution['ORDERING'] || 0 },
         accountingTable: { expected: distribution.accountingTableQuestionsCount, actual: finalDistribution['ACCOUNTING_TABLE'] || 0 },
         compoundChoice: { expected: distribution.compoundChoiceQuestionsCount, actual: finalDistribution['COMPOUND_CHOICE'] || 0 },
-        enhancedCompound: { expected: distribution.enhancedCompoundQuestionsCount, actual: finalDistribution['ENHANCED_COMPOUND'] || 0 },
-        dropdownSelect: { expected: distribution.dropdownSelectQuestionsCount, actual: finalDistribution['DROPDOWN_SELECT'] || 0 }
+        enhancedCompound: { expected: distribution.enhancedCompoundQuestionsCount, actual: finalDistribution['ENHANCED_COMPOUND'] || 0 }
       });
     } else {
       logger.info('✅ SUCCESS: Exact question distribution achieved!');
@@ -1956,8 +2061,7 @@ class QuestionRandomizationService {
       'ORDERING': 'orderingQuestionsCount',
       'ACCOUNTING_TABLE': 'accountingTableQuestionsCount',
       'COMPOUND_CHOICE': 'compoundChoiceQuestionsCount',
-      'ENHANCED_COMPOUND': 'enhancedCompoundQuestionsCount',
-      'DROPDOWN_SELECT': 'dropdownSelectQuestionsCount'
+      'ENHANCED_COMPOUND': 'enhancedCompoundQuestionsCount'
     };
 
     for (const [questionType, distributionKey] of Object.entries(typeMapping)) {
