@@ -639,7 +639,33 @@ class ExamService {
     try {
       const exam = await prisma.exam.findUnique({
         where: { id: examId },
-        include: {
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          duration: true,
+          totalMarks: true,
+          passingMarks: true,
+          price: true,
+          currency: true,
+          isActive: true,
+          maxRetakes: true,
+          totalQuestions: true,
+          examCategoryId: true,
+          questionOverlapPercentage: true,
+          // Include all question type distribution counts
+          essayQuestionsCount: true,
+          multipleChoiceQuestionsCount: true,
+          shortAnswerQuestionsCount: true,
+          fillInTheBlankQuestionsCount: true,
+          trueFalseQuestionsCount: true,
+          matchingQuestionsCount: true,
+          orderingQuestionsCount: true,
+          accountingTableQuestionsCount: true,
+          compoundChoiceQuestionsCount: true,
+          enhancedCompoundQuestionsCount: true,
+          singleChoiceQuestionsCount: true,
+          dropdownSelectQuestionsCount: true,
           examCategory: true
         }
       });
@@ -681,7 +707,9 @@ class ExamService {
           ordering: exam.orderingQuestionsCount,
           accountingTable: exam.accountingTableQuestionsCount,
           compoundChoice: exam.compoundChoiceQuestionsCount,
-          enhancedCompound: exam.enhancedCompoundQuestionsCount
+          enhancedCompound: exam.enhancedCompoundQuestionsCount,
+          singleChoice: exam.singleChoiceQuestionsCount,
+          dropdownSelect: exam.dropdownSelectQuestionsCount
         }
       });
       
@@ -702,7 +730,9 @@ class ExamService {
         orderingQuestionsCount: exam.orderingQuestionsCount || 0,
         accountingTableQuestionsCount: exam.accountingTableQuestionsCount || 0,
         compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0,
-        enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0
+        enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0,
+        singleChoiceQuestionsCount: exam.singleChoiceQuestionsCount || 0,
+        dropdownSelectQuestionsCount: exam.dropdownSelectQuestionsCount || 0
       });
       
       logger.info('Questions generated with distribution', {
