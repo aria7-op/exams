@@ -246,6 +246,11 @@ class QuestionRandomizationService {
           logger.info(`✅ Perfect! Got exactly ${expectedTotal} questions with correct distribution`);
         }
         
+        // CRITICAL: Check if we need to fill more slots to reach total question count
+        if (selectedQuestions.length < questionCount) {
+          logger.warn(`⚠️ Distribution complete but need ${questionCount - selectedQuestions.length} more questions to reach total of ${questionCount}`);
+        }
+        
         // CRITICAL: Final verification - ensure we have the exact number requested
         if (selectedQuestions.length !== expectedTotal) {
           logger.error(`🚨 CRITICAL: Still missing questions after all fallbacks! Expected: ${expectedTotal}, Got: ${selectedQuestions.length}`);
@@ -267,6 +272,53 @@ class QuestionRandomizationService {
               logger.error(`🚨 CRITICAL: Not enough questions in pool to meet requirement!`);
             }
           }
+        }
+        
+        // CRITICAL: Fill remaining slots to reach total question count
+        if (selectedQuestions.length < questionCount) {
+          const remainingSlots = questionCount - selectedQuestions.length;
+          logger.warn(`⚠️ Need to fill ${remainingSlots} additional slots to reach total of ${questionCount} questions`);
+          
+          // Get all available questions that haven't been selected yet
+          const selectedIds = new Set(selectedQuestions.map(q => q.id));
+          const allAvailableQuestions = Object.values(questionsByType).flat();
+          const remainingQuestions = allAvailableQuestions.filter(q => !selectedIds.has(q.id));
+          
+          if (remainingQuestions.length >= remainingSlots) {
+            // Use weighted random selection for remaining questions
+            const additionalQuestions = await this.weightedRandomSelection(
+              remainingQuestions,
+              userId ? await this.getUserQuestionHistory(userId) : new Map(),
+              remainingSlots,
+              overlapPercentage
+            );
+            
+            selectedQuestions.push(...additionalQuestions);
+            logger.info(`✅ Added ${additionalQuestions.length} additional questions to reach total of ${questionCount}`);
+            
+            // Log final distribution
+            const finalDistribution = selectedQuestions.reduce((acc, q) => {
+              acc[q.type] = (acc[q.type] || 0) + 1;
+              return acc;
+            }, {});
+            
+            logger.info('🎯 Final complete distribution:', finalDistribution);
+            logger.info(`🎯 TOTAL QUESTIONS: ${selectedQuestions.length}/${questionCount}`);
+          } else {
+            logger.error(`🚨 CRITICAL: Not enough questions available to fill remaining slots! Need ${remainingSlots}, have ${remainingQuestions.length}`);
+          }
+        }
+        
+        // FINAL VERIFICATION: Ensure we have the requested number of questions
+        if (selectedQuestions.length !== questionCount) {
+          logger.error(`🚨 CRITICAL: Final question count mismatch! Expected: ${questionCount}, Got: ${selectedQuestions.length}`);
+          
+          // If we still don't have enough, this is a critical error
+          if (selectedQuestions.length < questionCount) {
+            logger.error(`🚨 CRITICAL: System cannot provide ${questionCount} questions. Available: ${selectedQuestions.length}`);
+          }
+        } else {
+          logger.info(`✅ SUCCESS: Exactly ${questionCount} questions generated!`);
         }
         
         // Return the questions with proper distribution
@@ -394,6 +446,15 @@ class QuestionRandomizationService {
           selectedQuestions.push(...finalQuestions);
           logger.info(`🚨 FINAL FALLBACK: Added ${finalQuestions.length} questions to meet requirement`);
         }
+        
+        // Log final distribution
+        const finalDistribution = selectedQuestions.reduce((acc, q) => {
+          acc[q.type] = (acc[q.type] || 0) + 1;
+          return acc;
+        }, {});
+        
+        logger.info('🎯 Final complete distribution:', finalDistribution);
+        logger.info(`🎯 TOTAL QUESTIONS: ${selectedQuestions.length}/${questionCount}`);
       }
 
       // Log the selection for analytics
@@ -2000,6 +2061,10 @@ class QuestionRandomizationService {
       return acc;
     }, {});
 
+    // Calculate total requested and actual
+    const totalRequested = Object.values(distribution).reduce((sum, count) => sum + count, 0);
+    const totalActual = selectedQuestions.length;
+
     logger.info('🎯 Final question distribution achieved:', finalDistribution);
     logger.info('📊 Distribution verification:', {
       essay: { requested: distribution.essayQuestionsCount, actual: finalDistribution['ESSAY'] || 0 },
@@ -2013,6 +2078,14 @@ class QuestionRandomizationService {
       compoundChoice: { requested: distribution.compoundChoiceQuestionsCount, actual: finalDistribution['COMPOUND_CHOICE'] || 0 },
       enhancedCompound: { requested: distribution.enhancedCompoundQuestionsCount, actual: finalDistribution['ENHANCED_COMPOUND'] || 0 }
     });
+    
+    logger.info(`🎯 TOTAL QUESTIONS: Requested: ${totalRequested}, Actual: ${totalActual}`);
+    
+    if (totalActual !== totalRequested) {
+      logger.error(`🚨 CRITICAL: Question count mismatch! Expected: ${totalRequested}, Got: ${totalActual}`);
+    } else {
+      logger.info(`✅ SUCCESS: Exact question count achieved!`);
+    }
 
     // CRITICAL: Ensure we have the exact distribution requested
     const hasExactDistribution = Object.entries(distribution).every(([key, requestedCount]) => {
@@ -2035,6 +2108,29 @@ class QuestionRandomizationService {
         compoundChoice: { expected: distribution.compoundChoiceQuestionsCount, actual: finalDistribution['COMPOUND_CHOICE'] || 0 },
         enhancedCompound: { expected: distribution.enhancedCompoundQuestionsCount, actual: finalDistribution['ENHANCED_COMPOUND'] || 0 }
       });
+      
+      // FINAL DESPERATE ATTEMPT: Try to fill missing questions from any available pool
+      logger.warn(`🚨 FINAL DESPERATE ATTEMPT: Trying to fill missing questions...`);
+      
+      const allAvailableQuestions = Object.values(questionsByType).flat();
+      const selectedIds = new Set(selectedQuestions.map(q => q.id));
+      const remainingQuestions = allAvailableQuestions.filter(q => !selectedIds.has(q.id));
+      
+      if (remainingQuestions.length > 0) {
+        const missingCount = totalRequested - totalActual;
+        const additionalQuestions = remainingQuestions.slice(0, missingCount);
+        
+        selectedQuestions.push(...additionalQuestions);
+        logger.warn(`🚨 FINAL: Added ${additionalQuestions.length} questions from any available pool`);
+        
+        // Update final distribution
+        const updatedDistribution = selectedQuestions.reduce((acc, q) => {
+          acc[q.type] = (acc[q.type] || 0) + 1;
+          return acc;
+        }, {});
+        
+        logger.info('🎯 Updated distribution after final fallback:', updatedDistribution);
+      }
     } else {
       logger.info('✅ SUCCESS: Exact question distribution achieved!');
     }
