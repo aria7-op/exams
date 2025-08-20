@@ -118,7 +118,7 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const question = await prisma.question.findUnique({
-      where: { id: parseInt(id) },
+      where: { id: id },
       include: {
         exam_categories: true,
         tags: true,
