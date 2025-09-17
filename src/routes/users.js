@@ -454,6 +454,7 @@ router.post('/bulk', auth, authorize('ADMIN', 'SUPER_ADMIN'), async (req, res) =
           password: await bcrypt.hash(u.password, saltRounds),
           firstName: u.firstName,
           lastName: u.lastName,
+          role: 'STUDENT',
           isEmailVerified: true
         };
       })
