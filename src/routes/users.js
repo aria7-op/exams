@@ -406,11 +406,21 @@ router.post('/bulk', auth, authorize('ADMIN', 'SUPER_ADMIN'), async (req, res) =
     for (const item of users) {
       const email = (item?.email || '').toLowerCase().trim();
       const password = item?.password || '';
-      if (!emailRegex.test(email) || typeof password !== 'string' || password.length < 8) {
-        invalid.push({ email: item?.email || '', reason: 'Invalid email or password (min 8 chars)' });
+      const firstName = (item?.firstName || '').trim();
+      const lastName = (item?.lastName || '').trim();
+      if (!emailRegex.test(email)) {
+        invalid.push({ email: item?.email || '', reason: 'Invalid email format' });
         continue;
       }
-      normalized.push({ email, password });
+      if (typeof password !== 'string' || password.length < 8) {
+        invalid.push({ email, reason: 'Password must be at least 8 characters' });
+        continue;
+      }
+      if (!firstName || !lastName) {
+        invalid.push({ email, reason: 'firstName and lastName are required' });
+        continue;
+      }
+      normalized.push({ email, password, firstName, lastName });
     }
 
     if (normalized.length === 0) {
@@ -422,11 +432,11 @@ router.post('/bulk', auth, authorize('ADMIN', 'SUPER_ADMIN'), async (req, res) =
     }
 
     // De-duplicate emails within the payload (keep last occurrence)
-    const emailToPassword = new Map();
+    const emailToUser = new Map();
     for (const u of normalized) {
-      emailToPassword.set(u.email, u.password);
+      emailToUser.set(u.email, { password: u.password, firstName: u.firstName, lastName: u.lastName });
     }
-    const uniqueEmails = Array.from(emailToPassword.keys());
+    const uniqueEmails = Array.from(emailToUser.keys());
 
     // Pre-check existing emails to compute skipped later
     const existing = await prisma.user.findMany({
@@ -437,11 +447,16 @@ router.post('/bulk', auth, authorize('ADMIN', 'SUPER_ADMIN'), async (req, res) =
 
     const saltRounds = parseInt(process.env.BCRYPT_ROUNDS) || 12;
     const data = await Promise.all(
-      uniqueEmails.map(async (email) => ({
-        email,
-        password: await bcrypt.hash(emailToPassword.get(email), saltRounds),
-        isEmailVerified: true
-      }))
+      uniqueEmails.map(async (email) => {
+        const u = emailToUser.get(email);
+        return {
+          email,
+          password: await bcrypt.hash(u.password, saltRounds),
+          firstName: u.firstName,
+          lastName: u.lastName,
+          isEmailVerified: true
+        };
+      })
     );
 
     const createResult = await prisma.user.createMany({
@@ -471,7 +486,8 @@ router.post('/bulk', auth, authorize('ADMIN', 'SUPER_ADMIN'), async (req, res) =
     logger.error('Bulk user create failed', error);
     return res.status(500).json({
       success: false,
-      message: 'Failed to create users in bulk'
+      message: 'Failed to create users in bulk',
+      error: error?.message
     });
   }
 });
