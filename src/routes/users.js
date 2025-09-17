@@ -2,6 +2,7 @@ const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const { auth, authorize } = require('../middleware/auth');
 const logger = require('../config/logger');
+const bcrypt = require('bcryptjs');
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -386,4 +387,93 @@ router.put('/profile/me', auth, async (req, res) => {
   }
 });
 
-module.exports = router; 
+// Bulk create users (Admin only)
+router.post('/bulk', auth, authorize('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
+  try {
+    const { users } = req.body || {};
+
+    if (!Array.isArray(users) || users.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Request body must include a non-empty "users" array'
+      });
+    }
+
+    const emailRegex = /[^@\s]+@[^@\s]+\.[^@\s]+/;
+    const normalized = [];
+    const invalid = [];
+
+    for (const item of users) {
+      const email = (item?.email || '').toLowerCase().trim();
+      const password = item?.password || '';
+      if (!emailRegex.test(email) || typeof password !== 'string' || password.length < 8) {
+        invalid.push({ email: item?.email || '', reason: 'Invalid email or password (min 8 chars)' });
+        continue;
+      }
+      normalized.push({ email, password });
+    }
+
+    if (normalized.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'All provided users are invalid',
+        details: { invalid }
+      });
+    }
+
+    // De-duplicate emails within the payload (keep last occurrence)
+    const emailToPassword = new Map();
+    for (const u of normalized) {
+      emailToPassword.set(u.email, u.password);
+    }
+    const uniqueEmails = Array.from(emailToPassword.keys());
+
+    // Pre-check existing emails to compute skipped later
+    const existing = await prisma.user.findMany({
+      where: { email: { in: uniqueEmails } },
+      select: { email: true }
+    });
+    const existingSet = new Set(existing.map(e => e.email));
+
+    const saltRounds = parseInt(process.env.BCRYPT_ROUNDS) || 12;
+    const data = await Promise.all(
+      uniqueEmails.map(async (email) => ({
+        email,
+        password: await bcrypt.hash(emailToPassword.get(email), saltRounds),
+        isEmailVerified: true
+      }))
+    );
+
+    const createResult = await prisma.user.createMany({
+      data,
+      skipDuplicates: true
+    });
+
+    const inserted = createResult.count;
+    const skipped = uniqueEmails.length - inserted;
+
+    logger.info('Bulk user create summary', { total: users.length, unique: uniqueEmails.length, inserted, skipped, invalid: invalid.length });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Bulk user operation completed',
+      data: {
+        inserted,
+        skipped,
+        invalid: invalid.length,
+        details: {
+          invalid,
+          preExisting: Array.from(existingSet)
+        }
+      }
+    });
+  } catch (error) {
+    logger.error('Bulk user create failed', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to create users in bulk'
+    });
+  }
+});
+
+module.exports = router;
