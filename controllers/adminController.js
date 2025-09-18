@@ -1003,6 +1003,7 @@ class AdminController {
       const { bookingId } = req.params;
       const approvedBy = req.user.id;
 
+      console.log('Admin Controller: Approving booking:', bookingId, 'by user:', approvedBy);
       const result = await examBookingService.approveBooking(bookingId, approvedBy);
 
       if (!result.success) {
@@ -1204,6 +1205,24 @@ class AdminController {
           message: 'Failed to get system analytics'
         }
       });
+    }
+  }
+
+  async bulkBookExamForAllUsers(req, res) {
+    try {
+      const { examId } = req.params;
+      const { scheduledAt, confirm = false, notes } = req.body || {};
+      const result = await examBookingService.createBookingsForAllUsers(examId, {
+        scheduledAt,
+        confirm: Boolean(confirm),
+        notes,
+        createdBy: req.user?.id || 'system'
+      });
+      const status = result.success ? 200 : 400;
+      return res.status(status).json({ success: result.success, ...result });
+    } catch (error) {
+      logger.error('Bulk book exam for all users failed', error);
+      return res.status(500).json({ success: false, message: 'Server error' });
     }
   }
 
