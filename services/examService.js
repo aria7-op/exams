@@ -680,14 +680,7 @@ class ExamService {
         return { success: false, message: 'Exam is not active' };
       }
 
-      // Check if exam is approved by admin
-      if (!exam.approvedBy) {
-        return { 
-          success: false, 
-          message: 'Exam has not been approved by admin yet. Please wait for admin approval before starting the exam.',
-          code: 'EXAM_NOT_APPROVED'
-        };
-      }
+      // Note: Exam approval check removed - now using booking approval instead
 
       // Check if user has already reached max attempts
       const attemptCount = await prisma.examAttempt.count({
