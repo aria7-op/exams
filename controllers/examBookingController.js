@@ -1,13 +1,12 @@
 const { PrismaClient } = require('@prisma/client');
 const logger = require('../config/logger');
-const ExamBookingService = require('../services/examBookingService');
+const examBookingService = require('../services/examBookingService');
 const questionRandomizationService = require('../services/questionRandomizationService');
 const paymentService = require('../services/paymentService');
 const notificationService = require('../services/notificationService');
 const { validateExamBooking, validateAdminExamBooking, validateBookingUpdate } = require('../validators/examBookingValidator');
 
 const prisma = new PrismaClient();
-const examBookingService = new ExamBookingService();
 
 
 
