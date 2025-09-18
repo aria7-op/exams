@@ -86,6 +86,7 @@ app.use(helmet({
 // CORS configuration - More permissive for development
 const allowedOrigins = process.env.NODE_ENV === 'production' 
   ? [
+      'https://examination.ariadelta.af',
       'https://examinations.ariadelta.af',
       'https://31.97.70.79:5050',
       'https://31.97.70.79:2021',
