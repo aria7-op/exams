@@ -279,8 +279,8 @@ model ExamBooking {
   totalAmount     Decimal       @db.Decimal(10, 2)
   currency        String        @default("USD")
   notes           String?
-  approvedBy      String?
-  approvedAt      DateTime?
+  approvedBy      String?     @map("approved_by")
+  approvedAt      DateTime?   @map("approved_at")
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   attemptsAllowed Int?          @default(1) @map("attempts_allowed")
@@ -850,4 +850,5 @@ enum AccessLevel {
   WRITE
   ADMIN
 }
+
 
