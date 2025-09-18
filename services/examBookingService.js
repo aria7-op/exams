@@ -1047,6 +1047,7 @@ class ExamBookingService {
    */
   async approveBooking(bookingId, approvedBy) {
     try {
+      console.log('ExamBookingService: Approving booking', { bookingId, approvedBy });
       logger.info('Approving booking', { bookingId, approvedBy });
 
       // Check if booking exists
@@ -1248,4 +1249,4 @@ class ExamBookingService {
   }
 }
 
-module.exports = ExamBookingService; 
+module.exports = new ExamBookingService(); 
