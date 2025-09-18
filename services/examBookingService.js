@@ -483,8 +483,51 @@ class ExamBookingService {
           id: bookingId,
           userId
         },
+        select: {
+          id: true,
+          userId: true,
+          examId: true,
+          bookingDate: true,
+          scheduledAt: true,
+          status: true,
+          paymentId: true,
+          totalAmount: true,
+          currency: true,
+          notes: true,
+          approvedBy: true,
+          approvedAt: true,
+          createdAt: true,
+          updatedAt: true,
+          attemptsAllowed: true,
+          attemptsUsed: true,
+        },
         include: {
-          exam: true
+          exam: {
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              duration: true,
+              totalMarks: true,
+              passingMarks: true,
+              price: true,
+              currency: true,
+              isActive: true,
+              maxRetakes: true,
+              totalQuestions: true,
+              examCategoryId: true,
+              questionOverlapPercentage: true,
+              examCategory: true
+            }
+          },
+          approver: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true
+            }
+          }
         }
       });
 
@@ -494,6 +537,15 @@ class ExamBookingService {
 
       if (booking.status !== 'CONFIRMED') {
         return { success: false, message: 'Booking must be confirmed before starting exam' };
+      }
+
+      // Check if booking is approved by admin
+      if (!booking.approvedBy) {
+        return { 
+          success: false, 
+          message: 'Your booking has not been approved by admin yet. Please wait for admin approval before starting the exam.',
+          code: 'BOOKING_NOT_APPROVED'
+        };
       }
 
       // Check attempts limit
@@ -987,6 +1039,211 @@ class ExamBookingService {
     } catch (error) {
       logger.error('Get booking analytics failed', error);
       throw error;
+    }
+  }
+
+  /**
+   * Approve booking for exam start
+   */
+  async approveBooking(bookingId, approvedBy) {
+    try {
+      logger.info('Approving booking', { bookingId, approvedBy });
+
+      // Check if booking exists
+      const booking = await prisma.examBooking.findUnique({
+        where: { id: bookingId },
+        select: {
+          id: true,
+          userId: true,
+          examId: true,
+          status: true,
+          approvedBy: true,
+          approvedAt: true,
+          exam: {
+            select: {
+              id: true,
+              title: true
+            }
+          },
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true
+            }
+          }
+        }
+      });
+
+      if (!booking) {
+        return { success: false, message: 'Booking not found' };
+      }
+
+      // Check if booking is confirmed
+      if (booking.status !== 'CONFIRMED') {
+        return { 
+          success: false, 
+          message: 'Booking must be confirmed before it can be approved',
+          data: { booking }
+        };
+      }
+
+      // Check if already approved
+      if (booking.approvedBy) {
+        return { 
+          success: false, 
+          message: 'Booking is already approved',
+          data: { booking }
+        };
+      }
+
+      // Approve the booking
+      const updatedBooking = await prisma.examBooking.update({
+        where: { id: bookingId },
+        data: {
+          approvedBy,
+          approvedAt: new Date()
+        },
+        include: {
+          exam: {
+            select: {
+              id: true,
+              title: true,
+              description: true
+            }
+          },
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true
+            }
+          },
+          approver: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true
+            }
+          }
+        }
+      });
+
+      logger.info('Booking approved successfully', { 
+        bookingId, 
+        approvedBy, 
+        approvedAt: updatedBooking.approvedAt 
+      });
+
+      return {
+        success: true,
+        message: 'Booking approved successfully',
+        booking: updatedBooking
+      };
+    } catch (error) {
+      logger.error('Approve booking failed', error);
+      return { 
+        success: false, 
+        message: 'Failed to approve booking',
+        error: error.message 
+      };
+    }
+  }
+
+  /**
+   * Revoke booking approval
+   */
+  async revokeBookingApproval(bookingId, revokedBy) {
+    try {
+      logger.info('Revoking booking approval', { bookingId, revokedBy });
+
+      // Check if booking exists
+      const booking = await prisma.examBooking.findUnique({
+        where: { id: bookingId },
+        select: {
+          id: true,
+          userId: true,
+          examId: true,
+          status: true,
+          approvedBy: true,
+          approvedAt: true,
+          exam: {
+            select: {
+              id: true,
+              title: true
+            }
+          },
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true
+            }
+          }
+        }
+      });
+
+      if (!booking) {
+        return { success: false, message: 'Booking not found' };
+      }
+
+      // Check if booking is approved
+      if (!booking.approvedBy) {
+        return { 
+          success: false, 
+          message: 'Booking is not approved yet',
+          data: { booking }
+        };
+      }
+
+      // Revoke the approval
+      const updatedBooking = await prisma.examBooking.update({
+        where: { id: bookingId },
+        data: {
+          approvedBy: null,
+          approvedAt: null
+        },
+        include: {
+          exam: {
+            select: {
+              id: true,
+              title: true,
+              description: true
+            }
+          },
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true
+            }
+          }
+        }
+      });
+
+      logger.info('Booking approval revoked successfully', { 
+        bookingId, 
+        revokedBy, 
+        revokedAt: new Date() 
+      });
+
+      return {
+        success: true,
+        message: 'Booking approval revoked successfully',
+        booking: updatedBooking
+      };
+    } catch (error) {
+      logger.error('Revoke booking approval failed', error);
+      return { 
+        success: false, 
+        message: 'Failed to revoke booking approval',
+        error: error.message 
+      };
     }
   }
 }
