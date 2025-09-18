@@ -44,6 +44,7 @@ model User {
   examScores                            ExamScore[]
   approvedExams                         Exam[]             @relation("ExamApprover")
   createdExams                          Exam[]             @relation("ExamCreator")
+  approvedBookings                      ExamBooking[]      @relation("BookingApprover")
   notifications                         Notification[]
   notificationPreferences               NotificationPreference?
   payments                              Payment[]
@@ -278,6 +279,8 @@ model ExamBooking {
   totalAmount     Decimal       @db.Decimal(10, 2)
   currency        String        @default("USD")
   notes           String?
+  approvedBy      String?
+  approvedAt      DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   attemptsAllowed Int?          @default(1) @map("attempts_allowed")
@@ -285,6 +288,7 @@ model ExamBooking {
   attempts        ExamAttempt[]
   exam            Exam          @relation(fields: [examId], references: [id], onDelete: Cascade)
   user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  approver        User?         @relation("BookingApprover", fields: [approvedBy], references: [id])
   payment         Payment?
 
   @@index([userId])
@@ -292,6 +296,8 @@ model ExamBooking {
   @@index([status])
   @@index([scheduledAt])
   @@index([createdAt])
+  @@index([approvedBy])
+  @@index([approvedAt])
   @@map("exam_bookings")
 }
 
@@ -844,3 +850,4 @@ enum AccessLevel {
   WRITE
   ADMIN
 }
+
