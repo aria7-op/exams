@@ -59,13 +59,24 @@ const io = socketIo(server, {
         console.log('✅ WebSocket CORS allowed for origin:', origin);
         callback(null, true);
       } else {
-        console.log('🚫 WebSocket CORS blocked origin:', origin);
-        callback(new Error('Not allowed by WebSocket CORS'));
+        // For development, be more permissive
+        if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV !== 'production') {
+          console.log('⚠️ Development mode: Allowing WebSocket origin:', origin);
+          callback(null, true);
+        } else {
+          console.log('🚫 WebSocket CORS blocked origin:', origin);
+          callback(new Error('Not allowed by WebSocket CORS'));
+        }
       }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
-  }
+  },
+  // Add additional configuration for better connection handling
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  upgradeTimeout: 10000,
+  allowEIO3: true
 });
 
 const PORT = process.env.PORT || 5050;
@@ -77,6 +88,8 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'"],
+      // Allow API/websocket connections to external HTTPS endpoints (e.g., ngrok)
+      connectSrc: ["'self'", "https:", "wss:"],
       imgSrc: ["'self'", "data:", "https:"],
     },
   },
@@ -86,12 +99,7 @@ app.use(helmet({
 // CORS configuration - More permissive for development
 const allowedOrigins = process.env.NODE_ENV === 'production' 
   ? [
-      'https://examination.ariadelta.af',
-      'https://examinations.ariadelta.af',
-      'https://31.97.70.79:5050',
-      'https://31.97.70.79:2021',
-      'https://31.97.70.79:3000',
-      'https://31.97.70.79:5173'
+      'https://examination.ariadelta.af'
     ]
   : [
       'http://localhost:3000', 
@@ -111,6 +119,23 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
       'https://31.97.70.79:2020'
     ];
 
+// Fast-path preflight: always echo back Origin for OPTIONS to avoid 500s via tunnels/proxies
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    const origin = req.headers.origin;
+    if (origin) {
+      res.header('Access-Control-Allow-Origin', origin);
+    }
+    res.header('Vary', 'Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Origin, Accept');
+    res.header('Access-Control-Expose-Headers', 'Content-Range, X-Content-Range');
+    return res.sendStatus(204);
+  }
+  next();
+});
+
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
@@ -127,6 +152,9 @@ app.use(cors({
       // For development, be more permissive
       if (process.env.NODE_ENV === 'development') {
         console.log('⚠️ Development mode: Allowing blocked origin:', origin);
+        callback(null, true);
+      } else if (allowedOrigins.includes('http://examination.ariadelta.af') && origin === 'http://examination.ariadelta.af') {
+        // Explicit allow for production http origin
         callback(null, true);
       } else {
         console.log('🚫 CORS blocked origin:', origin);
