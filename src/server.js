@@ -5,8 +5,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
-const rateLimit = require('express-rate-limit');
-const slowDown = require('express-slow-down');
+// Rate limiting imports removed
 const morgan = require('morgan');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -35,6 +34,7 @@ const adminRoutes = require('./routes/admin');
 const notificationRoutes = require('./routes/notifications');
 
 const app = express();
+app.set('trust proxy', true);
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
@@ -72,27 +72,7 @@ app.use(cors({
   exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100000000000, // limit each IP to 1000 requests per windowMs (increased for development)
-  message: {
-    error: 'Too many requests from this IP, please try again later.',
-    retryAfter: Math.ceil((parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000) / 1000000000000),
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Slow down requests
-const speedLimiter = slowDown({
-  windowMs: parseInt(process.env.SLOW_DOWN_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  delayAfter: parseInt(process.env.SLOW_DOWN_DELAY_AFTER) || 50000000000, // allow 500 requests per 15 minutes, then... (increased for development)
-  delayMs: () => parseInt(process.env.SLOW_DOWN_DELAY_MS) || 500000000000, // begin adding 500ms of delay per request above 500
-});
-
-app.use(limiter);
-app.use(speedLimiter);
+// Rate limiting disabled for development
 
 // Compression
 app.use(compression());
