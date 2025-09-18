@@ -138,16 +138,19 @@ class ExamBookingController {
           select: { id: true }
         });
 
+        // Get question count for audit logging
+        const questionCount = exam.totalQuestions || 10;
+        let randomizedQuestions = null;
+
         // Only create exam questions if they don't exist yet
         if (existingExamQuestions.length === 0) {
-          const questionCount = exam.totalQuestions || 10; // Use configured total, not assigned questions
           
           if (questionCount === 0) {
             logger.warn(`Exam ${examId} has no questions configured. Creating booking without questions.`);
           } else {
             logger.info(`Generating ${questionCount} randomized questions for exam ${examId}`);
             
-            const randomizedQuestions = await questionRandomizationService.generateRandomQuestions({
+            randomizedQuestions = await questionRandomizationService.generateRandomQuestions({
               examId,
               userId,
               questionCount,
@@ -775,10 +778,12 @@ class ExamBookingController {
           select: { id: true }
         });
 
+        // Get question count for audit logging
+        const questionCount = exam.totalQuestions || 10;
+
         // Only create exam questions if they don't exist yet
         if (existingExamQuestions.length === 0) {
           // Generate randomized questions for this exam
-          const questionCount = exam.totalQuestions || 10; // Use configured total, not assigned questions
           const randomizedQuestions = await questionRandomizationService.generateRandomQuestions({
             examId,
             userId,
