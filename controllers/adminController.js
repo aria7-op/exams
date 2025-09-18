@@ -294,21 +294,6 @@ class AdminController {
     try {
       const { name, description, icon, color, sortOrder } = req.body;
 
-      // Check if category with this name already exists
-      const existingCategory = await prisma.examCategory.findUnique({
-        where: { name }
-      });
-
-      if (existingCategory) {
-        return res.status(400).json({
-          success: false,
-          error: {
-            message: 'A category with this name already exists',
-            code: 'DUPLICATE_CATEGORY_NAME'
-          }
-        });
-      }
-
       const category = await prisma.examCategory.create({
         data: {
           name,
@@ -339,18 +324,6 @@ class AdminController {
       });
     } catch (error) {
       logger.error('Create exam category failed', error);
-      
-      // Handle Prisma unique constraint violation
-      if (error.code === 'P2002') {
-        return res.status(400).json({
-          success: false,
-          error: {
-            message: 'A category with this name already exists',
-            code: 'DUPLICATE_CATEGORY_NAME'
-          }
-        });
-      }
-      
       res.status(500).json({
         success: false,
         error: {
@@ -967,7 +940,7 @@ class AdminController {
   async approveExam(req, res) {
     try {
       const { examId } = req.params;
-      const { approvedBy } = req.user;
+      const approvedBy = req.user.id;
 
       const result = await examService.approveExam(examId, approvedBy);
 
@@ -986,6 +959,36 @@ class AdminController {
         success: false,
         error: {
           message: 'Failed to approve exam'
+        }
+      });
+    }
+  }
+
+  /**
+   * Revoke exam approval
+   */
+  async revokeExamApproval(req, res) {
+    try {
+      const { examId } = req.params;
+      const revokedBy = req.user.id;
+
+      const result = await examService.revokeExamApproval(examId, revokedBy);
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Exam approval revoked successfully',
+        data: { exam: result.exam }
+      });
+    } catch (error) {
+      logger.error('Revoke exam approval failed', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          message: 'Failed to revoke exam approval'
         }
       });
     }
