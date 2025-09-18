@@ -132,52 +132,62 @@ class ExamBookingController {
           }
         });
 
-        // Generate randomized questions for this specific booking
-        const questionCount = exam.totalQuestions || 10; // Use configured total, not assigned questions
-        
-        if (questionCount === 0) {
-          logger.warn(`Exam ${examId} has no questions configured. Creating booking without questions.`);
-        } else {
-          logger.info(`Generating ${questionCount} randomized questions for exam ${examId}`);
+        // Check if exam questions already exist for this exam
+        const existingExamQuestions = await tx.examQuestion.findMany({
+          where: { examId },
+          select: { id: true }
+        });
+
+        // Only create exam questions if they don't exist yet
+        if (existingExamQuestions.length === 0) {
+          const questionCount = exam.totalQuestions || 10; // Use configured total, not assigned questions
           
-          const randomizedQuestions = await questionRandomizationService.generateRandomQuestions({
-            examId,
-            userId,
-            questionCount,
-            examCategoryId: exam.examCategoryId,
-            overlapPercentage: exam.questionOverlapPercentage,
-            // Pass the exact question type distribution from the exam
-            essayQuestionsCount: exam.essayQuestionsCount || 0,
-            multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
-            shortAnswerQuestionsCount: exam.shortAnswerQuestionsCount || 0,
-            fillInTheBlankQuestionsCount: exam.fillInTheBlankQuestionsCount || 0,
-            trueFalseQuestionsCount: exam.trueFalseQuestionsCount || 0,
-            matchingQuestionsCount: exam.matchingQuestionsCount || 0,
-            orderingQuestionsCount: exam.orderingQuestionsCount || 0,
-            accountingTableQuestionsCount: exam.accountingTableQuestionsCount || 0,
-            compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0,
-            enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0
-          });
+          if (questionCount === 0) {
+            logger.warn(`Exam ${examId} has no questions configured. Creating booking without questions.`);
+          } else {
+            logger.info(`Generating ${questionCount} randomized questions for exam ${examId}`);
+            
+            const randomizedQuestions = await questionRandomizationService.generateRandomQuestions({
+              examId,
+              userId,
+              questionCount,
+              examCategoryId: exam.examCategoryId,
+              overlapPercentage: exam.questionOverlapPercentage,
+              // Pass the exact question type distribution from the exam
+              essayQuestionsCount: exam.essayQuestionsCount || 0,
+              multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
+              shortAnswerQuestionsCount: exam.shortAnswerQuestionsCount || 0,
+              fillInTheBlankQuestionsCount: exam.fillInTheBlankQuestionsCount || 0,
+              trueFalseQuestionsCount: exam.trueFalseQuestionsCount || 0,
+              matchingQuestionsCount: exam.matchingQuestionsCount || 0,
+              orderingQuestionsCount: exam.orderingQuestionsCount || 0,
+              accountingTableQuestionsCount: exam.accountingTableQuestionsCount || 0,
+              compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0,
+              enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0
+            });
 
-          if (!randomizedQuestions || randomizedQuestions.length === 0) {
-            throw new Error('Failed to generate randomized questions');
+            if (!randomizedQuestions || randomizedQuestions.length === 0) {
+              throw new Error('Failed to generate randomized questions');
+            }
+
+            logger.info(`Generated ${randomizedQuestions.length} randomized questions successfully`);
+
+            // Create exam questions for this exam with randomization
+            const examQuestions = randomizedQuestions.map((question, index) => ({
+              examId,
+              questionId: question.id,
+              order: index + 1,
+              marks: question.marks
+            }));
+
+            await tx.examQuestion.createMany({
+              data: examQuestions
+            });
+
+            logger.info(`Created ${examQuestions.length} exam questions for exam ${examId}`);
           }
-
-          logger.info(`Generated ${randomizedQuestions.length} randomized questions successfully`);
-
-          // Create exam questions for this booking with randomization
-          const examQuestions = randomizedQuestions.map((question, index) => ({
-            examId,
-            questionId: question.id,
-            order: index + 1,
-            marks: question.marks
-          }));
-
-          await tx.examQuestion.createMany({
-            data: examQuestions
-          });
-
-          logger.info(`Created ${examQuestions.length} exam questions for booking`);
+        } else {
+          logger.info(`Exam questions already exist for exam ${examId}, skipping creation`);
         }
 
         // Create audit log
@@ -759,38 +769,51 @@ class ExamBookingController {
           }
         });
 
-        // Generate randomized questions for this specific booking
-        const questionCount = exam.totalQuestions || 10; // Use configured total, not assigned questions
-        const randomizedQuestions = await questionRandomizationService.generateRandomQuestions({
-          examId,
-          userId,
-          questionCount,
-          examCategoryId: exam.examCategoryId,
-          overlapPercentage: exam.questionOverlapPercentage,
-          // Pass the exact question type distribution from the exam
-          essayQuestionsCount: exam.essayQuestionsCount || 0,
-          multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
-          shortAnswerQuestionsCount: exam.shortAnswerQuestionsCount || 0,
-          fillInTheBlankQuestionsCount: exam.fillInTheBlankQuestionsCount || 0,
-          trueFalseQuestionsCount: exam.trueFalseQuestionsCount || 0,
-          matchingQuestionsCount: exam.matchingQuestionsCount || 0,
-          orderingQuestionsCount: exam.orderingQuestionsCount || 0,
-          accountingTableQuestionsCount: exam.accountingTableQuestionsCount || 0,
-          compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0,
-          enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0
+        // Check if exam questions already exist for this exam
+        const existingExamQuestions = await tx.examQuestion.findMany({
+          where: { examId },
+          select: { id: true }
         });
 
-        // Create exam questions for this booking with randomization
-        const examQuestions = randomizedQuestions.map((question, index) => ({
-          examId,
-          questionId: question.id,
-          order: index + 1,
-          marks: question.marks
-        }));
+        // Only create exam questions if they don't exist yet
+        if (existingExamQuestions.length === 0) {
+          // Generate randomized questions for this exam
+          const questionCount = exam.totalQuestions || 10; // Use configured total, not assigned questions
+          const randomizedQuestions = await questionRandomizationService.generateRandomQuestions({
+            examId,
+            userId,
+            questionCount,
+            examCategoryId: exam.examCategoryId,
+            overlapPercentage: exam.questionOverlapPercentage,
+            // Pass the exact question type distribution from the exam
+            essayQuestionsCount: exam.essayQuestionsCount || 0,
+            multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
+            shortAnswerQuestionsCount: exam.shortAnswerQuestionsCount || 0,
+            fillInTheBlankQuestionsCount: exam.fillInTheBlankQuestionsCount || 0,
+            trueFalseQuestionsCount: exam.trueFalseQuestionsCount || 0,
+            matchingQuestionsCount: exam.matchingQuestionsCount || 0,
+            orderingQuestionsCount: exam.orderingQuestionsCount || 0,
+            accountingTableQuestionsCount: exam.accountingTableQuestionsCount || 0,
+            compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0,
+            enhancedCompoundQuestionsCount: exam.enhancedCompoundQuestionsCount || 0
+          });
 
-        await tx.examQuestion.createMany({
-          data: examQuestions
-        });
+          // Create exam questions for this exam with randomization
+          const examQuestions = randomizedQuestions.map((question, index) => ({
+            examId,
+            questionId: question.id,
+            order: index + 1,
+            marks: question.marks
+          }));
+
+          await tx.examQuestion.createMany({
+            data: examQuestions
+          });
+
+          logger.info(`Created ${examQuestions.length} exam questions for exam ${examId}`);
+        } else {
+          logger.info(`Exam questions already exist for exam ${examId}, skipping creation`);
+        }
 
         // Create audit log
         await tx.auditLog.create({
