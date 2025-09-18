@@ -1247,6 +1247,55 @@ class ExamBookingService {
       };
     }
   }
+
+  async createBookingsForAllUsers(examId, options = {}) {
+    const { scheduledAt = null, confirm = false, notes = null, createdBy = 'system' } = options;
+    try {
+      const exam = await prisma.exam.findUnique({ where: { id: examId } });
+      if (!exam) {
+        return { success: false, message: 'Exam not found' };
+      }
+      const users = await prisma.user.findMany({
+        where: { isActive: true, role: 'STUDENT', examBookings: { none: { examId } } },
+        select: { id: true }
+      });
+      if (users.length === 0) {
+        return { success: true, created: 0 };
+      }
+      const status = confirm ? 'CONFIRMED' : 'PENDING';
+      const data = users.map(u => ({
+        userId: u.id,
+        examId,
+        scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
+        status,
+        totalAmount: exam.price,
+        currency: exam.currency,
+        notes
+      }));
+      const chunkSize = 500;
+      let created = 0;
+      for (let i = 0; i < data.length; i += chunkSize) {
+        const chunk = data.slice(i, i + chunkSize);
+        const result = await prisma.examBooking.createMany({ data: chunk, skipDuplicates: true });
+        created += result.count || 0;
+      }
+      await prisma.auditLog.create({
+        data: {
+          userId: createdBy,
+          action: 'EXAM_BULK_BOOKED',
+          resource: 'EXAM',
+          resourceId: examId,
+          details: { created, scheduledAt, confirm },
+          ipAddress: 'system',
+          userAgent: 'bulk-booking'
+        }
+      });
+      return { success: true, created };
+    } catch (error) {
+      logger.error('Bulk booking for all users failed', error);
+      return { success: false, message: 'Failed to bulk book exam for users' };
+    }
+  }
 }
 
 module.exports = new ExamBookingService(); 
