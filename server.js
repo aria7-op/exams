@@ -99,13 +99,19 @@ app.use(helmet({
 // CORS configuration - More permissive for development
 const allowedOrigins = process.env.NODE_ENV === 'production' 
   ? [
-      'https://examination.ariadelta.af'
+      'https://examination.ariadelta.af',
+      'http://localhost:3000', // Allow localhost for development
+      'http://localhost:5173', // Allow Vite dev server
+      'https://localhost:3000', // Allow HTTPS localhost
+      'https://localhost:5173', // Allow HTTPS Vite dev server
     ]
   : [
       'http://localhost:3000', 
       'http://localhost:5173', 
-      'http://192.168.0.7:3000', 
+      'http://localhost:5050', // Add localhost:5050 for WebSocket connections
       'http://127.0.0.1:3000',
+      'http://127.0.0.1:5050', // Add 127.0.0.1:5050 for WebSocket connections
+      'http://192.168.0.7:3000', 
       'https://31.97.70.79:5050',
       'http://31.97.70.79:5050',
       'https://31.97.70.79:3000',
