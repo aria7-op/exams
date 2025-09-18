@@ -653,6 +653,8 @@ class ExamService {
           totalQuestions: true,
           examCategoryId: true,
           questionOverlapPercentage: true,
+          approvedBy: true,
+          approvedAt: true,
           // Include all question type distribution counts
           essayQuestionsCount: true,
           multipleChoiceQuestionsCount: true,
@@ -676,6 +678,15 @@ class ExamService {
 
       if (!exam.isActive) {
         return { success: false, message: 'Exam is not active' };
+      }
+
+      // Check if exam is approved by admin
+      if (!exam.approvedBy) {
+        return { 
+          success: false, 
+          message: 'Exam has not been approved by admin yet. Please wait for admin approval before starting the exam.',
+          code: 'EXAM_NOT_APPROVED'
+        };
       }
 
       // Check if user has already reached max attempts
@@ -2275,6 +2286,148 @@ class ExamService {
     } catch (error) {
       logger.error('Get exam attempt failed', error);
       throw error;
+    }
+  }
+
+  /**
+   * Approve exam for starting
+   */
+  async approveExam(examId, approvedBy) {
+    try {
+      logger.info('Approving exam', { examId, approvedBy });
+
+      // Check if exam exists
+      const exam = await prisma.exam.findUnique({
+        where: { id: examId },
+        select: {
+          id: true,
+          title: true,
+          approvedBy: true,
+          approvedAt: true,
+          isActive: true
+        }
+      });
+
+      if (!exam) {
+        return { success: false, message: 'Exam not found' };
+      }
+
+      // Check if already approved
+      if (exam.approvedBy) {
+        return { 
+          success: false, 
+          message: 'Exam is already approved',
+          data: { exam }
+        };
+      }
+
+      // Approve the exam
+      const updatedExam = await prisma.exam.update({
+        where: { id: examId },
+        data: {
+          approvedBy,
+          approvedAt: new Date()
+        },
+        include: {
+          examCategory: {
+            select: { name: true, color: true }
+          },
+          creator: {
+            select: { id: true, firstName: true, lastName: true, email: true }
+          },
+          approver: {
+            select: { id: true, firstName: true, lastName: true, email: true }
+          }
+        }
+      });
+
+      logger.info('Exam approved successfully', { 
+        examId, 
+        approvedBy, 
+        approvedAt: updatedExam.approvedAt 
+      });
+
+      return {
+        success: true,
+        message: 'Exam approved successfully',
+        exam: updatedExam
+      };
+    } catch (error) {
+      logger.error('Approve exam failed', error);
+      return { 
+        success: false, 
+        message: 'Failed to approve exam',
+        error: error.message 
+      };
+    }
+  }
+
+  /**
+   * Revoke exam approval
+   */
+  async revokeExamApproval(examId, revokedBy) {
+    try {
+      logger.info('Revoking exam approval', { examId, revokedBy });
+
+      // Check if exam exists
+      const exam = await prisma.exam.findUnique({
+        where: { id: examId },
+        select: {
+          id: true,
+          title: true,
+          approvedBy: true,
+          approvedAt: true
+        }
+      });
+
+      if (!exam) {
+        return { success: false, message: 'Exam not found' };
+      }
+
+      // Check if exam is approved
+      if (!exam.approvedBy) {
+        return { 
+          success: false, 
+          message: 'Exam is not approved yet',
+          data: { exam }
+        };
+      }
+
+      // Revoke the approval
+      const updatedExam = await prisma.exam.update({
+        where: { id: examId },
+        data: {
+          approvedBy: null,
+          approvedAt: null
+        },
+        include: {
+          examCategory: {
+            select: { name: true, color: true }
+          },
+          creator: {
+            select: { id: true, firstName: true, lastName: true, email: true }
+          }
+        }
+      });
+
+      logger.info('Exam approval revoked successfully', { 
+        examId, 
+        revokedBy, 
+        revokedAt: new Date() 
+      });
+
+      return {
+        success: true,
+        message: 'Exam approval revoked successfully',
+        exam: updatedExam
+      };
+    } catch (error) {
+      logger.error('Revoke exam approval failed', error);
+      return { 
+        success: false, 
+        message: 'Failed to revoke exam approval',
+        error: error.message 
+      };
     }
   }
 }
