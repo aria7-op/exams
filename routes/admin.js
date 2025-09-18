@@ -52,6 +52,8 @@ router.put('/exams/:examId', adminOrSuperAdmin, adminController.updateExam);
 router.delete('/exams/:examId', adminOrSuperAdmin, adminController.deleteExam);
 router.patch('/exams/:examId/approve', adminOrSuperAdmin, adminController.approveExam);
 router.patch('/exams/:examId/revoke-approval', adminOrSuperAdmin, adminController.revokeExamApproval);
+router.patch('/bookings/:bookingId/approve', adminOrSuperAdmin, adminController.approveBooking);
+router.patch('/bookings/:bookingId/revoke-approval', adminOrSuperAdmin, adminController.revokeBookingApproval);
 router.post('/exams/:examId/questions', adminOrSuperAdmin, adminController.addQuestionToExam);
 router.get('/exams/analytics', adminController.getExamAnalytics);
 
