@@ -3,6 +3,7 @@ const logger = require('../config/logger');
 const AdminService = require('../services/adminService');
 const UserService = require('../services/userService');
 const examService = require('../services/examService');
+const examBookingService = require('../services/examBookingService');
 const QuestionService = require('../services/questionService');
 const AnalyticsService = require('../services/analyticsService');
 const FileUploadService = require('../services/fileUploadService');
@@ -989,6 +990,66 @@ class AdminController {
         success: false,
         error: {
           message: 'Failed to revoke exam approval'
+        }
+      });
+    }
+  }
+
+  /**
+   * Approve booking for exam start
+   */
+  async approveBooking(req, res) {
+    try {
+      const { bookingId } = req.params;
+      const approvedBy = req.user.id;
+
+      const result = await examBookingService.approveBooking(bookingId, approvedBy);
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Booking approved successfully',
+        data: { booking: result.booking }
+      });
+    } catch (error) {
+      logger.error('Approve booking failed', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          message: 'Failed to approve booking'
+        }
+      });
+    }
+  }
+
+  /**
+   * Revoke booking approval
+   */
+  async revokeBookingApproval(req, res) {
+    try {
+      const { bookingId } = req.params;
+      const revokedBy = req.user.id;
+
+      const result = await examBookingService.revokeBookingApproval(bookingId, revokedBy);
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Booking approval revoked successfully',
+        data: { booking: result.booking }
+      });
+    } catch (error) {
+      logger.error('Revoke booking approval failed', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          message: 'Failed to revoke booking approval'
         }
       });
     }
