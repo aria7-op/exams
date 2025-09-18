@@ -57,6 +57,9 @@ router.patch('/bookings/:bookingId/revoke-approval', adminOrSuperAdmin, adminCon
 router.post('/exams/:examId/questions', adminOrSuperAdmin, adminController.addQuestionToExam);
 router.get('/exams/analytics', adminController.getExamAnalytics);
 
+// Bulk booking
+router.post('/exams/:examId/bulk-bookings/all-users', adminOrSuperAdmin, adminController.bulkBookExamForAllUsers);
+
 // ========================================
 // ESSAY TESTING
 // ========================================
