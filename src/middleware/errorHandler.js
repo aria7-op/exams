@@ -79,11 +79,7 @@ const errorHandler = (err, req, res, next) => {
     error = { message, statusCode: 400 };
   }
 
-  // Rate limiting errors
-  if (err.status === 429) {
-    const message = 'Too many requests, please try again later';
-    error = { message, statusCode: 429 };
-  }
+  // Rate limiting errors removed
 
   // Default error
   const statusCode = error.statusCode || 500;
@@ -106,10 +102,7 @@ const errorHandler = (err, req, res, next) => {
     method: req.method,
   };
 
-  // Add retry-after header for rate limiting
-  if (statusCode === 429) {
-    res.set('Retry-After', '60');
-  }
+  // Retry-after header removed
 
   res.status(statusCode).json(response);
 };
