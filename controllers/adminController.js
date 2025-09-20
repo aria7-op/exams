@@ -1315,6 +1315,89 @@ class AdminController {
       });
     }
   }
+
+  // ========================================
+  // REPORTS
+  // ========================================
+
+  /**
+   * Get per-student per-exam scores (latest completed attempt per exam)
+   */
+  async getStudentExamScores(req, res) {
+    try {
+      const { startDate, endDate, examCategoryId } = req.query;
+
+      // Fetch students
+      const students = await prisma.user.findMany({
+        where: { role: 'STUDENT' },
+        select: { id: true, firstName: true, lastName: true, email: true }
+      });
+
+      // Fetch exams (optionally filtered by category)
+      const exams = await prisma.exam.findMany({
+        where: examCategoryId ? { examCategoryId } : undefined,
+        select: { id: true, title: true }
+      });
+
+      if (students.length === 0 || exams.length === 0) {
+        return res.status(200).json({
+          success: true,
+          data: { students, exams, scores: [] }
+        });
+      }
+
+      // Fetch attempts within optional date range and for target exams
+      const attempts = await prisma.examAttempt.findMany({
+        where: {
+          status: 'COMPLETED',
+          examId: { in: exams.map(e => e.id) },
+          ...(startDate || endDate
+            ? { completedAt: { gte: startDate ? new Date(startDate) : undefined, lte: endDate ? new Date(endDate) : undefined } }
+            : {})
+        },
+        select: {
+          id: true,
+          userId: true,
+          examId: true,
+          obtainedMarks: true,
+          totalMarks: true,
+          percentage: true,
+          completedAt: true
+        },
+        orderBy: { completedAt: 'desc' }
+      });
+
+      // Reduce to latest attempt per (userId, examId)
+      const latestByPair = new Map();
+      for (const a of attempts) {
+        const key = `${a.userId}:${a.examId}`;
+        if (!latestByPair.has(key)) {
+          latestByPair.set(key, a);
+        }
+      }
+
+      const scores = Array.from(latestByPair.values()).map(a => ({
+        userId: a.userId,
+        examId: a.examId,
+        obtainedMarks: a.obtainedMarks,
+        totalMarks: a.totalMarks,
+        percentage: a.percentage,
+        completedAt: a.completedAt
+      }));
+
+      return res.status(200).json({
+        success: true,
+        data: { students, exams, scores }
+      });
+    } catch (error) {
+      logger.error('Get student exam scores failed', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to fetch student exam scores',
+        error: error?.message
+      });
+    }
+  }
 }
 
 module.exports = new AdminController(); 
