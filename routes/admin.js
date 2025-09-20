@@ -61,6 +61,11 @@ router.get('/exams/analytics', adminController.getExamAnalytics);
 router.post('/exams/:examId/bulk-bookings/all-users', adminOrSuperAdmin, adminController.bulkBookExamForAllUsers);
 
 // ========================================
+// REPORTS
+// ========================================
+router.get('/reports/student-exam-scores', adminController.getStudentExamScores);
+
+// ========================================
 // ESSAY TESTING
 // ========================================
 router.post('/test-essay', adminController.testEssayScoring);
